@@ -3,12 +3,19 @@
   const $ = id => document.getElementById(id);
   const STORAGE_KEY = 'teacher-copilot-v1';
   const DEMO = 'Modo demostración: respuesta de ejemplo, no IA real';
+  const SAMPLE_TITLE = 'Aprendizajes para nuestra comunidad';
+  const SAMPLE_MODULES = [
+    { id: 'water', title: 'El agua en nuestra comunidad', text: 'El agua se utiliza en el hogar, la escuela y las chacras. Observar cómo la usamos permite reconocer situaciones de desperdicio y proponer acciones para cuidarla. Comparar ideas y justificar acuerdos ayuda a construir una propuesta de acción colectiva.' },
+    { id: 'reading', title: 'Leemos para comprender', text: 'Comprender un texto implica identificar una idea central, relacionarla con experiencias y explicar qué partes sustentan nuestra interpretación. Conversar sobre interpretaciones distintas ayuda a revisar las ideas. El docente ofrece preguntas y oportunidades de releer.' }
+  ];
+  const SAMPLE_SYLLABUS = SAMPLE_TITLE + '\nSílabo ficticio · muestra del prototipo\n\n' + SAMPLE_MODULES.map((module, index) => `Unidad ${index + 1}. ${module.title}\n${module.text}`).join('\n\n');
   const phases = ['opening', 'development', 'closing'];
   let state = { prep: null, drafts: {}, current: null, evidenceDrafts: {}, activePortfolio: null };
   let modules = [];
   let sessions = [];
-  let currentView = 'prepare';
+  let currentView = 'course';
   let storageAvailable = true;
+  let courseDirty = false;
   let evidenceRequest = 0;
   let portfolioRequest = 0;
 
@@ -21,7 +28,7 @@
     notice('');
   }
   function persist() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); courseDirty = false; }
     catch (_) {
       storageAvailable = false;
       notice('Este navegador no permite conservar borradores. No cierres esta pestaña sin guardar la sesión.');
@@ -60,6 +67,59 @@
     button.disabled = active;
     button.textContent = label;
     button.setAttribute('aria-busy', String(active));
+  }
+  function courseStep(step, focus = true) {
+    state.course.step = step;
+    ['course-details', 'course-syllabus', 'course-modules'].forEach((id, index) => { $(id).hidden = index !== step; });
+    document.querySelectorAll('[data-course-step]').forEach(item => {
+      if (Number(item.dataset.courseStep) === step) item.setAttribute('aria-current', 'step');
+      else item.removeAttribute('aria-current');
+    });
+    persist();
+    if (focus) $(['course-details-heading', 'course-syllabus-heading', 'course-modules-heading'][step]).focus();
+  }
+  function showCourseContext() {
+    $('course-context').hidden = !state.course.confirmed;
+    $('prepared-course-name').textContent = state.course.confirmed ? state.course.name : '';
+  }
+  function showCoursePreview() {
+    const custom = state.course.syllabus !== SAMPLE_SYLLABUS;
+    $('syllabus-preview-note').textContent = custom
+      ? 'Tu texto se conserva como borrador. Estos módulos pertenecen al sílabo de ejemplo, no se extrajeron de tu texto. Al continuar prepararás con esta muestra fija.'
+      : 'Esta es una segmentación predefinida del sílabo ficticio de ejemplo. No se ha ejecutado IA ni se ha creado un curso en el servidor.';
+    $('course-reviewed').checked = state.course.reviewed;
+    $('course-confirm').disabled = !state.course.reviewed || !state.course.name.trim();
+  }
+  function captureCourse() {
+    courseDirty = courseDirty || state.course.name !== $('course-name').value || state.course.syllabus !== $('syllabus').value;
+    state.course.name = $('course-name').value;
+    state.course.syllabus = $('syllabus').value;
+    state.course.reviewed = false;
+    state.course.confirmed = false;
+    showCoursePreview();
+    showCourseContext();
+    persist();
+  }
+  function initializeCourse() {
+    const saved = state.course;
+    state.course = {
+      name: typeof saved?.name === 'string' ? saved.name.slice(0, 160) : SAMPLE_TITLE,
+      syllabus: typeof saved?.syllabus === 'string' ? saved.syllabus.slice(0, 12000) : SAMPLE_SYLLABUS,
+      step: [0, 1, 2].includes(saved?.step) ? saved.step : 0,
+      reviewed: saved?.reviewed === true,
+      confirmed: saved?.confirmed === true && saved?.reviewed === true && typeof saved?.name === 'string' && !!saved.name.trim()
+    };
+    $('course-name').value = state.course.name;
+    $('syllabus').value = state.course.syllabus;
+    $('sample-syllabus-text').textContent = SAMPLE_SYLLABUS;
+    for (const [index, module] of SAMPLE_MODULES.entries()) {
+      const card = node('article', undefined, 'card');
+      card.append(node('span', `Módulo ${index + 1} · muestra fija`, 'tag pale'), node('h3', module.title), node('p', 'FRAGMENTO DEL SÍLABO DE EJEMPLO', 'eyebrow'), node('blockquote', module.text));
+      $('course-module-list').append(card);
+    }
+    showCoursePreview();
+    showCourseContext();
+    courseStep(state.course.step, false);
   }
   function readPrep() {
     return { moduleId: $('module').value, grade: $('grade').value, duration: Number($('duration').value), context: $('context').value };
@@ -106,7 +166,7 @@
   }
   function go(view, focus = true) {
     currentView = view;
-    for (const name of ['prepare', 'review', 'portfolio']) $(name).hidden = name !== view;
+    for (const name of ['course', 'prepare', 'review', 'portfolio']) $(name).hidden = name !== view;
     document.querySelectorAll('[data-view]').forEach(button => {
       if (button.dataset.view === view) button.setAttribute('aria-current', 'page');
       else button.removeAttribute('aria-current');
@@ -220,6 +280,30 @@
     }
   }
   document.querySelectorAll('[data-view], [data-go]').forEach(button => button.addEventListener('click', () => go(button.dataset.view || button.dataset.go)));
+  $('course-name').addEventListener('input', captureCourse);
+  $('syllabus').addEventListener('input', captureCourse);
+  $('course-next').addEventListener('click', () => {
+    if (!$('course-name').reportValidity() || !$('course-name').value.trim()) { $('course-name').focus(); return; }
+    courseStep(1);
+  });
+  $('course-back-details').addEventListener('click', () => courseStep(0));
+  $('course-back-syllabus').addEventListener('click', () => courseStep(1));
+  $('course-preview').addEventListener('click', () => { showCoursePreview(); courseStep(2); });
+  $('course-reviewed').addEventListener('change', () => {
+    state.course.reviewed = $('course-reviewed').checked;
+    state.course.confirmed = false;
+    showCoursePreview();
+    showCourseContext();
+    persist();
+  });
+  $('course-confirm').addEventListener('click', () => {
+    if (!state.course.reviewed || !state.course.name.trim()) return;
+    state.course.confirmed = true;
+    persist();
+    showCourseContext();
+    go('prepare');
+    if (storageAvailable) notice('Módulos de ejemplo confirmados. El curso permanece solo en este navegador.');
+  });
   $('retry').addEventListener('click', boot);
   $('refresh').addEventListener('click', loadPortfolio);
   $('prepare-form').addEventListener('input', capturePrep);
@@ -288,9 +372,12 @@
     finally { busy($('save-evidence'), false, 'Guardar evidencia'); }
   });
   window.addEventListener('beforeunload', event => {
-    const dirty = Object.values(state.drafts).some(lesson => lesson.localDirty) || Object.values(state.evidenceDrafts).some(Boolean);
+    const dirty = courseDirty || Object.values(state.drafts).some(lesson => lesson.localDirty) || Object.values(state.evidenceDrafts).some(Boolean);
     if (!storageAvailable && dirty) { event.preventDefault(); event.returnValue = ''; }
   });
   restore();
+  const returning = !!(state.prep || state.current || state.course?.confirmed);
+  initializeCourse();
+  go(returning ? 'prepare' : 'course', false);
   boot();
 })();

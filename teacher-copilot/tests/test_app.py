@@ -163,6 +163,25 @@ class BedrockTests(unittest.TestCase):
         self.assertIn('Fuente ficticia', args['messages'][0]['content'][0]['text'])
         self.assertLessEqual(args['inferenceConfig']['maxTokens'], 2000)
 
+    def test_fenced_json_output(self):
+        for label in ('json', '', 'JSON'):
+            with self.subTest(label=label):
+                text = f'  ```{label}\n{json.dumps(self.lesson)}\n```  '
+                self.client.converse.return_value = {'output': {'message': {'content': [{'text': text}]}}}
+                self.assertEqual(self.model.generate(self.data), self.lesson)
+
+    def test_fenced_output_still_requires_valid_document_and_lesson(self):
+        valid = json.dumps(self.lesson)
+        invalid_lesson = json.dumps(dict(self.lesson, opening={'text': 'a', 'minutes': 500}))
+        for text in (f'Intro\n```json\n{valid}\n```', f'```json\n{valid}\n```\nOutro',
+                     f'```python\n{valid}\n```', f'```json\n{valid}',
+                     f'```json\n{invalid_lesson}\n```', '```json\n{}\n```'):
+            with self.subTest(text=text[:40]):
+                self.client.converse.return_value = {'output': {'message': {'content': [{'text': text}]}}}
+                with self.assertRaises(ProviderError) as error:
+                    self.model.generate(self.data)
+                self.assertEqual(error.exception.status, 502)
+
     def test_throttle_retry_bounded(self):
         self.client.converse.side_effect = [AwsError('ThrottlingException'), self.client.converse.return_value]
         self.model.generate(self.data)

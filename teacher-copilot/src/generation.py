@@ -94,7 +94,9 @@ class BedrockGenerator:
             text = ''.join(part.get('text', '') for part in content)
             if len(text) > 20000:
                 raise ValueError('Model response exceeds budget')
-            fenced = re.fullmatch('\\s*```(?:json)?[ \\t]*\\r?\\n(.*?)\\r?\\n```[ \\t]*\\s*', text, flags=re.IGNORECASE | re.DOTALL)
+            # Some models wrap the entire JSON document in a Markdown fence.
+            fenced = re.fullmatch(r'\s*```(?:json)?[ \t]*\r?\n(.*?)\r?\n```[ \t]*\s*',
+                                  text, flags=re.IGNORECASE | re.DOTALL)
             if fenced:
                 text = fenced.group(1)
             return lesson_fields(json.loads(text), data['duration'])

@@ -1,0 +1,82 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: T054 teacher copilot prototype - no deployment performed by initialization
+Parameters:
+  TeamId:
+    Type: String
+    Default: T054
+    AllowedPattern: '[A-Za-z0-9_-]{1,32}'
+  ModelId:
+    Type: String
+    Default: amazon.nova-lite-v1:0
+    Description: Same-region Bedrock foundation model supporting Converse; verify account access before deployment. Inference profiles require an explicit IAM update.
+    AllowedPattern: '[a-zA-Z0-9.:-]{1,200}'
+Resources:
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: $default
+      DefinitionBody:
+        openapi: '3.0.1'
+        info:
+          title: TeacherCopilot
+          version: '1.0'
+        paths: {}
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 40
+        ThrottlingRateLimit: 20
+  Records:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+      SSESpecification:
+        SSEEnabled: true
+  AppFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: app.handler
+      Runtime: python3.12
+      Architectures:
+        - arm64
+      MemorySize: 256
+      Timeout: 30
+      ReservedConcurrentExecutions: 5
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref Records
+          TEAM_ID: !Ref TeamId
+          MODEL_MODE: bedrock
+          MODEL_ID: !Ref ModelId
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:Scan
+              Resource: !GetAtt Records.Arn
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: !Sub 'arn:${AWS::Partition}:bedrock:${AWS::Region}::foundation-model/${ModelId}'
+      Events:
+        AllRoutes:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            TimeoutInMillis: 29000
+Outputs:
+  ApiUrl:
+    Description: API base URL - health, items, jobs and session routes
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}'
+  WebUrl:
+    Description: Frontend served by the same Lambda at /app without a redirect
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/app'

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#17594c">
+  <meta name="description" content="Del módulo de formación a una sesión editable y una reflexión del aula. Prototipo del Copiloto del docente público.">
+  <title>Copiloto del docente público</title>
+  <link rel="stylesheet" href="/app/assets/style.css">
+  <script src="/app/assets/app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Ir al contenido</a>
+  <header class="topbar">
+    <a class="brand" href="/app" aria-label="Copiloto del docente público, inicio"><span class="brand-mark" aria-hidden="true">c.</span><span>Copiloto del<br><strong>docente público</strong></span></a>
+    <p class="top-note">Menos tiempo en el formato.<br><strong>Más intención en el aula.</strong></p>
+    <span class="tag">Prototipo · <span id="team">T054</span></span>
+  </header>
+  <div class="layout">
+    <aside class="sidebar">
+      <p class="eyebrow">DE LA FUENTE AL AULA</p>
+      <nav aria-label="Pasos de preparación">
+        <button type="button" data-view="prepare" aria-controls="prepare" aria-current="page"><span class="step">01</span><span>Preparar clase</span></button>
+        <button type="button" data-view="review" aria-controls="review"><span class="step">02</span><span>Revisar sesión</span></button>
+        <button type="button" data-view="portfolio" aria-controls="portfolio"><span class="step">03</span><span>Portafolio</span></button>
+      </nav>
+      <div class="sidebar-note"><span class="small-icon" aria-hidden="true">↗</span><p>Tu criterio guía.<br>El copiloto propone.</p><small>Revisa cada propuesta antes de llevarla al aula.</small></div>
+    </aside>
+    <main id="main">
+      <div id="mode" class="mode" role="status">Consultando el modo de generación…</div>
+      <div id="error" class="notice error" role="alert" hidden><p id="error-text"></p><button id="retry" type="button" hidden>Reintentar carga</button></div>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+      <section id="prepare" class="view" aria-labelledby="prepare-title">
+        <header class="page-heading"><p class="eyebrow">01 / PREPARACIÓN</p><h1 id="prepare-title" tabindex="-1">Una idea del módulo.<br><em>Una clase con propósito.</em></h1><p>Elige tu punto de partida y cuéntanos cómo es tu aula.</p></header>
+        <form id="prepare-form">
+          <div class="prepare-grid">
+            <section class="card source-card" aria-labelledby="source-heading">
+              <div class="card-heading"><span class="section-number" aria-hidden="true">A</span><h2 id="source-heading">Material de partida</h2></div>
+              <label for="module">Módulo de formación</label>
+              <select id="module" required disabled><option value="">Cargando módulos…</option></select>
+              <div class="source"><span class="tag pale">Muestra ficticia</span><h3 id="module-title">Tu fuente aparecerá aquí</h3><p id="module-text">Estamos cargando el material de ejemplo.</p></div>
+              <p class="help">Fragmentos creados para este prototipo. No son cursos ni materiales oficiales del Ministerio de Educación.</p>
+            </section>
+            <section class="card" aria-labelledby="context-heading">
+              <div class="card-heading"><span class="section-number" aria-hidden="true">B</span><h2 id="context-heading">El contexto de tu aula</h2></div>
+              <div class="two-columns"><div><label for="grade">Grado o nivel</label><input id="grade" maxlength="80" value="5.º de primaria" required autocomplete="off"></div><div><label for="duration">Duración total <span class="unit">(minutos)</span></label><input id="duration" type="number" min="30" max="180" step="1" value="60" required inputmode="numeric"></div></div>
+              <label for="context">¿Qué debemos tener en cuenta?</label><textarea id="context" rows="5" maxlength="1200" required aria-describedby="context-help">Aula multigrado. Trabajo en grupos con papel y pizarra; sin conexión durante la clase.</textarea>
+              <p class="help" id="context-help">Contexto orientativo: cámbialo por tu realidad. Puedes indicar recursos, necesidades y formas de trabajo. No incluyas nombres ni datos personales.</p>
+            </section>
+          </div>
+          <div class="action-bar"><p>Una propuesta, no una receta.<br><span>Podrás editar cada parte y sus tiempos.</span></p><button type="submit" class="primary" id="generate" disabled>Generar propuesta <span aria-hidden="true">→</span></button></div>
+        </form>
+      </section>
+      <section id="review" class="view" aria-labelledby="review-title" hidden>
+        <header class="page-heading"><p class="eyebrow">02 / REVISIÓN DOCENTE</p><h1 id="review-title" tabindex="-1">Hazla tuya.</h1><p>Ajusta el propósito, las actividades y los tiempos antes de guardar.</p></header>
+        <div id="review-empty" class="card empty"><span class="empty-icon" aria-hidden="true">✎</span><h2>Tu próxima sesión empieza con una idea</h2><p>Primero elige un módulo y genera una propuesta. También puedes abrir una sesión desde tu portafolio.</p><button type="button" class="primary" data-go="prepare">Preparar una clase →</button></div>
+        <form id="lesson-form" hidden>
+          <div class="review-meta"><p id="lesson-meta"></p><span class="tag" id="lesson-state">Borrador</span></div>
+          <p id="provenance" class="notice"></p>
+          <section class="card lesson-card" aria-label="Contenido editable de la sesión">
+            <label for="lesson-title">Título de la sesión</label><input id="lesson-title" maxlength="160" required>
+            <label for="objective">Objetivo de aprendizaje</label><textarea id="objective" rows="3" maxlength="1000" required></textarea>
+            <div class="phase"><div class="phase-heading"><label for="opening">Inicio</label><label class="minutes" for="opening-minutes"><input id="opening-minutes" type="number" min="1" max="180" step="1" required> min</label></div><textarea id="opening" rows="3" maxlength="3500" required></textarea></div>
+            <div class="phase"><div class="phase-heading"><label for="development">Desarrollo</label><label class="minutes" for="development-minutes"><input id="development-minutes" type="number" min="1" max="180" step="1" required> min</label></div><textarea id="development" rows="5" maxlength="3500" required></textarea></div>
+            <div class="phase"><div class="phase-heading"><label for="closing">Cierre</label><label class="minutes" for="closing-minutes"><input id="closing-minutes" type="number" min="1" max="180" step="1" required> min</label></div><textarea id="closing" rows="3" maxlength="3500" required></textarea></div>
+            <p id="time-total" class="help" aria-live="polite"></p>
+            <label for="assessment">Evaluación y evidencia esperada</label><textarea id="assessment" rows="4" maxlength="2000" required></textarea>
+          </section>
+          <div class="action-bar"><p id="save-note">Tus cambios se conservan en este navegador.<br><span>Guarda para actualizar la sesión en el portafolio.</span></p><button class="primary" id="save-lesson" type="submit">Guardar sesión <span aria-hidden="true">✓</span></button></div>
+          <button type="button" class="text-button" data-go="portfolio">Ir al portafolio →</button>
+        </form>
+      </section>
+      <section id="portfolio" class="view" aria-labelledby="portfolio-title" hidden>
+        <header class="page-heading"><p class="eyebrow">03 / REFLEXIÓN Y CONTINUIDAD</p><h1 id="portfolio-title" tabindex="-1">Lo que preparas.<br><em>Lo que aprendes.</em></h1><p>Conserva tus sesiones y una reflexión breve después de la clase.</p></header>
+        <div class="portfolio-toolbar"><h2>Mis sesiones</h2><button id="refresh" type="button" class="text-button">Actualizar lista ↻</button></div>
+        <p id="portfolio-loading" role="status" hidden>Cargando sesiones…</p>
+        <div id="sessions-list" class="session-list"></div>
+        <section id="evidence-panel" class="card evidence-card" aria-labelledby="evidence-heading" hidden>
+          <p class="eyebrow">DESPUÉS DE LA CLASE</p><h2 id="evidence-heading">Evidencias y reflexión</h2><p id="evidence-session" class="help"></p>
+          <form id="evidence-form"><label for="evidence-text">¿Qué ocurrió y cuál es el siguiente paso?</label><textarea id="evidence-text" rows="4" maxlength="3000" required placeholder="Ejemplo: el grupo justificó dos propuestas. En la próxima clase contrastaremos sus resultados." aria-describedby="evidence-help"></textarea><p class="help" id="evidence-help">Solo texto anónimo del grupo, sin nombres, notas individuales, fotos ni archivos. La reflexión no se envía a la IA.</p><button class="primary" type="submit" id="save-evidence">Guardar evidencia</button></form>
+          <div id="evidence-list" class="evidence-list" aria-live="polite"></div>
+        </section>
+      </section>
+      <footer class="footer"><span>Diseñado para acompañar, no para reemplazar tu criterio.</span><span>Prototipo compartido · usa solo datos ficticios o anónimos.</span></footer>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.local/
+
+# AWS SAM build artifacts
+.aws-sam/
+
+# Environment / secrets
+.env
+*.pem
+
+# macOS metadata
+.DS_Store
+._*
+
+# Editor
+.idea/
+*.swp

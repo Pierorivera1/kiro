@@ -19,7 +19,8 @@ MODULES = [
 ]
 WEB = Path(__file__).parent / 'web'
 ASSETS = {'/app': ('index.html', 'text/html'), '/app/': ('index.html', 'text/html'),
-          '/app/assets/app.js': ('app.js', 'application/javascript'), '/app/assets/style.css': ('style.css', 'text/css')}
+          '/app/assets/app.js': ('app.js', 'application/javascript'), '/app/assets/style.css': ('style.css', 'text/css'),
+          '/app/assets/favicon.svg': ('favicon.svg', 'image/svg+xml')}
 ID = r'[a-f0-9]{32}'
 
 

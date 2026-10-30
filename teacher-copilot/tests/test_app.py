@@ -143,6 +143,15 @@ class AppTests(unittest.TestCase):
         self.assertIn('Preparar clase', self.call('GET', '/app')['body'])
         self.assertNotIn('innerHTML', Path('src/web/app.js').read_text())
 
+    def test_same_origin_favicon_is_served_under_existing_csp(self):
+        html = self.call('GET', '/app')
+        self.assertIn('href="/app/assets/favicon.svg"', html['body'])
+        self.assertIn("img-src 'self'", html['headers']['Content-Security-Policy'])
+        icon = self.call('GET', '/app/assets/favicon.svg')
+        self.assertIn('image/svg+xml', icon['headers']['Content-Type'])
+        self.assertIn('<svg', icon['body'])
+        self.call('POST', '/app/assets/favicon.svg', {}, 405)
+
 
 class DynamoTests(unittest.TestCase):
     def test_recent_item_scans_past_first_100_and_includes_new_nonce(self):

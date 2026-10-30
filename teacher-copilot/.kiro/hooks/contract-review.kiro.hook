@@ -1,0 +1,14 @@
+{
+  "version": "1",
+  "enabled": false,
+  "name": "Review teacher copilot contracts (legacy candidate)",
+  "description": "Disabled legacy when/then format from official Kiro examples. Review the installed Kiro version before enabling. Never represented as an executed workflow.",
+  "when": {
+    "type": "fileEdited",
+    "patterns": ["src/**/*.py", "src/web/*.js", "template.yaml"]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Review the changed teacher copilot contract against .kiro/specs/teacher-copilot/requirements.md. Verify exact opaque nonce preservation, item scan pagination, job completion after two seconds, lesson duration sums, evidence session links, and explicit demo versus Bedrock provenance. Run .venv/bin/python -m unittest discover -s tests -v and node --check src/web/app.js. Report failures and limits without claiming AWS deployment, Kiro runtime validation, or evaluation success. Do not deploy, contact AWS, read credentials, or modify account resources."
+  }
+}

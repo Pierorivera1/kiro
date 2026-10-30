@@ -1,0 +1,17 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Teacher copilot offline checks",
+      "description": "Run deterministic contracts and JavaScript syntax checks after source changes. Runtime activation has not been tested in Kiro.",
+      "enabled": true,
+      "trigger": "PostFileSave",
+      "matcher": "(^|/)teacher-copilot/(src|tests|scripts)/.*\\.(py|js)$",
+      "action": {
+        "type": "command",
+        "command": "cd teacher-copilot && .venv/bin/python -m unittest discover -s tests -v && node --check src/web/app.js"
+      },
+      "timeout": 30
+    }
+  ]
+}

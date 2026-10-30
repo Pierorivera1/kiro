@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#17594c">
+  <meta name="theme-color" content="#f7f3e8">
   <meta name="description" content="Del módulo de formación a una sesión editable y una reflexión del aula. Prototipo del Copiloto del docente público.">
   <title>Copiloto del docente público</title>
   <link rel="stylesheet" href="/app/assets/style.css">
@@ -31,7 +31,7 @@
       <div id="error" class="notice error" role="alert" hidden><p id="error-text"></p><button id="retry" type="button" hidden>Reintentar carga</button></div>
       <p id="status" class="status" role="status" aria-live="polite"></p>
       <section id="prepare" class="view" aria-labelledby="prepare-title">
-        <header class="page-heading"><p class="eyebrow">01 / PREPARACIÓN</p><h1 id="prepare-title" tabindex="-1">Una idea del módulo.<br><em>Una clase con propósito.</em></h1><p>Elige tu punto de partida y cuéntanos cómo es tu aula.</p></header>
+        <header class="page-heading"><h1 id="prepare-title" tabindex="-1">Preparar clase</h1><p>Elige un módulo y describe el contexto de tu aula.</p></header>
         <form id="prepare-form">
           <div class="prepare-grid">
             <section class="card source-card" aria-labelledby="source-heading">
@@ -52,7 +52,7 @@
         </form>
       </section>
       <section id="review" class="view" aria-labelledby="review-title" hidden>
-        <header class="page-heading"><p class="eyebrow">02 / REVISIÓN DOCENTE</p><h1 id="review-title" tabindex="-1">Hazla tuya.</h1><p>Ajusta el propósito, las actividades y los tiempos antes de guardar.</p></header>
+        <header class="page-heading"><h1 id="review-title" tabindex="-1">Revisar sesión</h1><p>Ajusta el propósito, las actividades y los tiempos antes de guardar.</p></header>
         <div id="review-empty" class="card empty"><span class="empty-icon" aria-hidden="true">✎</span><h2>Tu próxima sesión empieza con una idea</h2><p>Primero elige un módulo y genera una propuesta. También puedes abrir una sesión desde tu portafolio.</p><button type="button" class="primary" data-go="prepare">Preparar una clase →</button></div>
         <form id="lesson-form" hidden>
           <div class="review-meta"><p id="lesson-meta"></p><span class="tag" id="lesson-state">Borrador</span></div>
@@ -71,12 +71,12 @@
         </form>
       </section>
       <section id="portfolio" class="view" aria-labelledby="portfolio-title" hidden>
-        <header class="page-heading"><p class="eyebrow">03 / REFLEXIÓN Y CONTINUIDAD</p><h1 id="portfolio-title" tabindex="-1">Lo que preparas.<br><em>Lo que aprendes.</em></h1><p>Conserva tus sesiones y una reflexión breve después de la clase.</p></header>
+        <header class="page-heading"><h1 id="portfolio-title" tabindex="-1">Portafolio</h1><p>Conserva tus sesiones y una reflexión breve después de la clase.</p></header>
         <div class="portfolio-toolbar"><h2>Mis sesiones</h2><button id="refresh" type="button" class="text-button">Actualizar lista ↻</button></div>
         <p id="portfolio-loading" role="status" hidden>Cargando sesiones…</p>
         <div id="sessions-list" class="session-list"></div>
         <section id="evidence-panel" class="card evidence-card" aria-labelledby="evidence-heading" hidden>
-          <p class="eyebrow">DESPUÉS DE LA CLASE</p><h2 id="evidence-heading">Evidencias y reflexión</h2><p id="evidence-session" class="help"></p>
+          <h2 id="evidence-heading">Evidencias y reflexión</h2><p id="evidence-session" class="help"></p>
           <form id="evidence-form"><label for="evidence-text">¿Qué ocurrió y cuál es el siguiente paso?</label><textarea id="evidence-text" rows="4" maxlength="3000" required placeholder="Ejemplo: el grupo justificó dos propuestas. En la próxima clase contrastaremos sus resultados." aria-describedby="evidence-help"></textarea><p class="help" id="evidence-help">Solo texto anónimo del grupo, sin nombres, notas individuales, fotos ni archivos. La reflexión no se envía a la IA.</p><button class="primary" type="submit" id="save-evidence">Guardar evidencia</button></form>
           <div id="evidence-list" class="evidence-list" aria-live="polite"></div>
         </section>

@@ -61,8 +61,13 @@ def new_id():
     return uuid.uuid4().hex
 
 
+def public_item(record):
+    # Creation time is internal ranking metadata, not part of the API contract.
+    return {'id': record['id'], 'value': record['value']}
+
+
 class Application:
-    def __init__(self, store, generator, mode='bedrock', team='T054'):
+    def __init__(self, store, generator, mode='bedrock', team='T084'):
         self.store, self.generator, self.mode, self.team = store, generator, mode, team
 
     def require(self, kind, identifier):
@@ -109,11 +114,12 @@ class Application:
             return response(200, {'modules': MODULES})
         if path == '/items':
             if method == 'GET':
-                return response(200, {'items': self.store.list('item', 100)})
+                return response(200, {'items': [public_item(item) for item in self.store.list_recent_items()]})
             value = nonce_text(body(event).get('value'))
-            return response(201, self.store.put('item', {'id': new_id(), 'value': value}))
+            item = self.store.put('item', {'id': new_id(), 'value': value, 'createdAt': time.time_ns()})
+            return response(201, public_item(item))
         if path.startswith('/items/'):
-            return response(200, self.require('item', path.split('/')[2]))
+            return response(200, public_item(self.require('item', path.split('/')[2])))
         if path == '/jobs':
             value = nonce_text(body(event).get('input'))
             identifier = new_id()
@@ -185,7 +191,7 @@ def create_application():
         generator = BedrockGenerator(client, model_id)
     else:
         generator = DemoGenerator()
-    return Application(store, generator, mode, os.environ.get('TEAM_ID', 'T054'))
+    return Application(store, generator, mode, os.environ.get('TEAM_ID', 'T084'))
 
 
 def handler(event, context=None):

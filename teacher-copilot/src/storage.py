@@ -35,6 +35,10 @@ class SQLiteStore:
         with self.connect() as db:
             return [json.loads(row[0]) for row in db.execute(sql, args + [limit]).fetchall()]
 
+    def list_recent_items(self, limit=100):
+        # Items are immutable; rowid reflects insertion order, including legacy items.
+        return self.list('item', limit)
+
 
 class DynamoStore:
     def __init__(self, table):
@@ -49,6 +53,28 @@ class DynamoStore:
     def get(self, kind, identifier):
         item = self.table.get_item(Key={'pk': kind + '#' + identifier}, ConsistentRead=True).get('Item')
         return json.loads(item['data']) if item else None
+
+    def list_recent_items(self, limit=100, scan_budget=10000):
+        # Scan order is arbitrary. Examine all pages before selecting newest
+        # items, or fail explicitly rather than return a misleading subset.
+        params = {'FilterExpression': '#kind = :kind', 'ExpressionAttributeNames': {'#kind': 'kind'},
+                  'ExpressionAttributeValues': {':kind': 'item'}, 'ConsistentRead': True}
+        records = []
+        scanned = 0
+        while True:
+            params['Limit'] = min(200, scan_budget - scanned)
+            page = self.table.scan(**params)
+            scanned += page['ScannedCount']
+            records.extend(json.loads(item['data']) for item in page.get('Items', []))
+            key = page.get('LastEvaluatedKey')
+            if not key:
+                break
+            if scanned >= scan_budget:
+                raise RuntimeError('Item listing scan budget exceeded')
+            params['ExclusiveStartKey'] = key
+        # Legacy records have no creation timestamp and rank after newer ones.
+        records.sort(key=lambda item: (item.get('createdAt', 0), item['id']), reverse=True)
+        return records[:limit]
 
     def list(self, kind, limit=100, session_id=None):
         # DynamoDB Limit counts evaluated records, not matching records. A filtered

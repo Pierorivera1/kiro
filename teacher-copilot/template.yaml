@@ -1,10 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: T054 teacher copilot prototype - no deployment performed by initialization
+Description: Teacher copilot prototype
 Parameters:
   TeamId:
     Type: String
-    Default: T054
+    Default: T084
     AllowedPattern: '[A-Za-z0-9_-]{1,32}'
   ModelId:
     Type: String

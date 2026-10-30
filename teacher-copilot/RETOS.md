@@ -13,7 +13,7 @@ Copiloto del docente público. The implemented local slice follows training modu
 | Python 3.12 Lambda + SAM HTTP API | src/app.py and template.yaml; same handler locally |
 | DynamoDB persistence | Typed pk records; item scans paginate and cap at 100 matches |
 | Amazon Bedrock | Converse provider, configurable model; real execution pending |
-| GET /health | status=ok, team configurable; default T054 |
+| GET /health | status=ok, team configurable; default T084 |
 | POST/GET /items and GET /items/{id} | Exact opaque nonce round-trip; no trimming |
 | POST /jobs and GET /jobs/{jobId} | 202, queued, then lazy done after two seconds, exact reversed input |
 | Direct frontend route | GET /app HTML from Lambda, with separate static assets |
@@ -25,7 +25,7 @@ The public baseline permits readyAt-based lazy completion for the badge job. Thi
 
 - [x] Real local module-to-session-to-evidence flow; no sample-only button behavior.
 - [x] Explicit distinction between deterministic demonstration and real AI.
-- [x] Configurable TeamId=T054 and scoped data/model policies.
+- [x] Configurable TeamId=T084 and scoped data/model policies.
 - [x] Provisional materials clearly distinguished from organizer files.
 - [ ] Official five CANVAS prompts and selected-track text confirmed.
 - [ ] Actual installed Kiro hook activation evidenced.

@@ -42,10 +42,22 @@ class AppTests(unittest.TestCase):
         nonce = '  Ñ\n水🙂  '
         item = self.call('POST', '/items', {'value': nonce}, 201)
         self.assertEqual(item['value'], nonce)
+        self.assertEqual(set(item), {'id', 'value'})
         self.assertEqual(self.call('GET', '/items/' + item['id']), item)
         self.generate()
         self.assertEqual(self.call('GET', '/items'), {'items': [item]})
-        self.assertEqual(SQLiteStore(self.store.path).get('item', item['id']), item)
+        persisted = SQLiteStore(self.store.path).get('item', item['id'])
+        self.assertEqual(persisted['value'], item['value'])
+        self.assertIsInstance(persisted['createdAt'], int)
+
+    def test_latest_item_is_listed_after_over_100_existing_records(self):
+        for n in range(120):
+            self.store.put('item', {'id': f'{n:032x}', 'value': 'older'})
+        latest = self.call('POST', '/items', {'value': 'new nonce'}, 201)
+        items = self.call('GET', '/items')['items']
+        self.assertEqual(len(items), 100)
+        self.assertIn(latest, items)
+        self.assertTrue(all(set(item) == {'id', 'value'} for item in items))
 
     def test_nonce_whitespace_is_preserved_not_normalized(self):
         for nonce in ['   ', '\t\n', 'e\u0301水']:
@@ -133,6 +145,26 @@ class AppTests(unittest.TestCase):
 
 
 class DynamoTests(unittest.TestCase):
+    def test_recent_item_scans_past_first_100_and_includes_new_nonce(self):
+        table = Mock()
+        table.scan.side_effect = [
+            {'Items': [{'data': json.dumps({'id': str(n), 'value': 'old'})} for n in range(100)],
+             'ScannedCount': 100, 'LastEvaluatedKey': {'pk': 'next'}},
+            {'Items': [{'data': json.dumps({'id': 'new', 'value': 'nonce', 'createdAt': 10})}],
+             'ScannedCount': 1},
+        ]
+        result = DynamoStore(table).list_recent_items()
+        self.assertEqual(len(result), 100)
+        self.assertEqual(result[0]['value'], 'nonce')
+        self.assertEqual(table.scan.call_args_list[1].kwargs['ExclusiveStartKey'], {'pk': 'next'})
+
+    def test_recent_items_scan_budget_is_explicit_error_not_silent_truncation(self):
+        table = Mock()
+        table.scan.return_value = {'Items': [], 'ScannedCount': 200, 'LastEvaluatedKey': {'pk': 'next'}}
+        with self.assertRaises(RuntimeError):
+            DynamoStore(table).list_recent_items(scan_budget=400)
+        self.assertEqual(table.scan.call_count, 2)
+
     def test_scan_follows_empty_filtered_page_and_stops_at_100(self):
         table = Mock()
         table.scan.side_effect = [

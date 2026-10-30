@@ -11,14 +11,14 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 import app
 from storage import SQLiteStore, DynamoStore
-from generation import BedrockGenerator, ProviderError, demo_lesson
+from generation import BedrockGenerator, DemoGenerator, ProviderError, demo_lesson
 
 
 class AppTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.store = SQLiteStore(str(Path(self.tmp.name) / 'test.db'))
-        self.api = app.Application(self.store, generator=Mock(generate=lambda x: demo_lesson(x)), mode='demo', team='T054')
+        self.api = app.Application(self.store, generator=Mock(generate=lambda x: demo_lesson(x)), mode='demo', team='TEST-TEAM')
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -33,7 +33,7 @@ class AppTests(unittest.TestCase):
         return self.call('POST', '/sessions/generate', {'moduleId': 'water', 'grade': '5.º primaria', 'duration': 60, 'context': 'Aula multigrado, sin conexión.'}, 201)
 
     def test_health_team_and_config(self):
-        self.assertEqual(self.call('GET', '/health'), {'status': 'ok', 'team': 'T054'})
+        self.assertEqual(self.call('GET', '/health'), {'status': 'ok', 'team': 'TEST-TEAM'})
         self.api.team = 'OTHER'
         self.assertEqual(self.call('GET', '/health')['team'], 'OTHER')
         self.assertEqual(self.call('GET', '/config')['mode'], 'demo')
@@ -153,6 +153,76 @@ class AppTests(unittest.TestCase):
         self.call('POST', '/app/assets/favicon.svg', {}, 405)
 
 
+class ProductFeatureTests(unittest.TestCase):
+    call = AppTests.call
+    generate = AppTests.generate
+    tearDown = AppTests.tearDown
+
+    def setUp(self):
+        AppTests.setUp(self)
+        self.api.generator = DemoGenerator()
+
+    def test_custom_syllabus_module_flows_into_lesson_and_persistence(self):
+        source = 'La comunidad compara mapas históricos y testimonios anónimos para explicar cambios del barrio.'
+        course = self.call('POST', '/courses/generate', {'name': 'Historia local', 'syllabus': source}, 201)
+        self.assertEqual(course['provenance'], 'demo')
+        module = course['modules'][0]
+        self.assertEqual(module['text'], source)
+        module['title'] = 'Mapas de mi barrio'
+        module['objective'] = 'Comparar cambios del barrio con mapas.'
+        generated = self.call('POST', '/sessions/generate', {'moduleId': module['id'], 'customModule': module,
+            'courseName': course['name'], 'grade': '5.º', 'duration': 60, 'context': 'Papel y pizarra.'}, 201)
+        self.assertEqual(generated['module'], dict(module, label='Módulo de tu curso · revisado por el docente'))
+        self.assertEqual(generated['moduleTitle'], 'Mapas de mi barrio')
+        recovered = self.call('GET', '/sessions/' + generated['id'])
+        self.assertEqual(recovered['module']['text'], source)
+        self.assertEqual(recovered['courseName'], 'Historia local')
+
+    def test_editable_rubric_survives_save_and_reopen(self):
+        lesson = self.generate()
+        lesson['objective'] = 'Objetivo editado antes de crear la rúbrica'
+        generator = Mock(wraps=DemoGenerator())
+        self.api.generator = generator
+        result = self.call('POST', f"/sessions/{lesson['id']}/rubric", {'lesson': lesson})
+        self.assertEqual(generator.rubric.call_args.args[0]['lesson']['objective'], lesson['objective'])
+        self.assertEqual(result['provenance'], 'demo')
+        lesson['rubric'] = result['rubric']
+        lesson['rubric'][0]['achieved'] = 'Descriptor editado por el docente'
+        saved = self.call('PUT', '/sessions/' + lesson['id'], lesson)
+        recovered = SQLiteStore(self.store.path).get('session', lesson['id'])
+        self.assertEqual(saved['rubric'], recovered['rubric'])
+        self.assertEqual(recovered['rubric'][0]['achieved'], 'Descriptor editado por el docente')
+        self.assertEqual(self.call('GET', '/sessions')['sessions'][0]['rubric'], lesson['rubric'])
+
+    def test_improve_only_returns_selected_text_using_current_teacher_edits(self):
+        lesson = self.generate()
+        lesson['opening']['text'] = 'Apertura escrita por la docente'
+        lesson['development']['text'] = 'Experimento editado por la docente'
+        original = json.loads(json.dumps(lesson))
+        generator = Mock(wraps=DemoGenerator())
+        self.api.generator = generator
+        result = self.call('POST', f"/sessions/{lesson['id']}/improve", {
+            'lesson': lesson, 'phase': 'development', 'instruction': 'Más participativo'})
+        self.assertEqual(set(result), {'text', 'phase', 'provenance'})
+        self.assertIn('Experimento editado por la docente', result['text'])
+        self.assertEqual(generator.improve.call_args.args[0]['lesson']['opening']['text'], original['opening']['text'])
+        self.assertEqual(self.call('GET', '/sessions/' + lesson['id'])['status'], 'draft')
+        self.assertNotEqual(self.call('GET', '/sessions/' + lesson['id'])['opening']['text'], lesson['opening']['text'], 'AI tools must not auto-save unsaved edits')
+
+    def test_adaptation_uses_current_lesson_and_keeps_times(self):
+        lesson = self.generate()
+        lesson['title'] = 'Título editado antes de adaptar'
+        result = self.call('POST', f"/sessions/{lesson['id']}/adapt", {
+            'lesson': lesson, 'instruction': 'Sin internet; solo papel y pizarra'})
+        self.assertEqual(result['title'], lesson['title'])
+        self.assertIn('Sin internet', result['development']['text'])
+        self.assertEqual([result[p]['minutes'] for p in ['opening', 'development', 'closing']],
+                         [lesson[p]['minutes'] for p in ['opening', 'development', 'closing']])
+        lesson.update({key: result[key] for key in ['title', 'objective', 'assessment', 'opening', 'development', 'closing', 'adaptation']})
+        self.call('PUT', '/sessions/' + lesson['id'], lesson)
+        self.assertEqual(self.call('GET', '/sessions/' + lesson['id'])['adaptation'], result['adaptation'])
+
+
 class DynamoTests(unittest.TestCase):
     def test_recent_item_scans_past_first_100_and_includes_new_nonce(self):
         table = Mock()
@@ -228,6 +298,24 @@ class BedrockTests(unittest.TestCase):
         self.model.generate(self.data)
         self.assertEqual(self.client.converse.call_count, 2)
         self.model.sleep.assert_called_once()
+
+    def test_product_operations_call_converse_with_actual_source_and_teacher_draft(self):
+        def output(data):
+            self.client.converse.return_value = {'output': {'message': {'content': [{'text': json.dumps(data)}]}}}
+        output({'modules': [{'title': 'Mapas', 'objective': 'Comparar mapas', 'text': 'Mapas del barrio de 1950 y 2020'}]})
+        course = self.model.course({'name': 'Historia', 'syllabus': 'Mapas del barrio de 1950 y 2020'})
+        self.assertEqual(course['modules'][0]['title'], 'Mapas')
+        self.assertIn('Mapas del barrio de 1950 y 2020', self.client.converse.call_args.kwargs['messages'][0]['content'][0]['text'])
+        rubric = [{'criterion': 'Comparación', 'beginning': 'Reconoce un cambio', 'developing': 'Compara dos mapas', 'achieved': 'Justifica con evidencias'}]
+        output({'rubric': rubric})
+        self.assertEqual(self.model.rubric({'lesson': self.lesson})['rubric'], rubric)
+        output({'text': 'Medir y comparar en grupos'})
+        self.assertEqual(self.model.improve({'lesson': self.lesson, 'phase': 'development', 'instruction': 'Más práctico'})['text'], 'Medir y comparar en grupos')
+        output(self.lesson)
+        draft = dict(self.lesson, duration=60)
+        result = self.model.adapt({'lesson': draft, 'instruction': 'Sin internet'})
+        self.assertEqual(result, self.lesson)
+        self.assertEqual(self.client.converse.call_count, 4)
 
     def test_provider_errors_and_bad_output(self):
         for code, status, attempts in [('ValidationException', 400, 1), ('AccessDeniedException', 502, 1), ('ThrottlingException', 502, 3)]:

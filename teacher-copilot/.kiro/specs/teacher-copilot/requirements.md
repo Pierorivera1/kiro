@@ -1,23 +1,37 @@
-# Teacher copilot requirements
+# Requisitos del copiloto docente
 
-Status: implemented locally; cloud and Kiro runtime verification pending. This is a team-authored specification, not an organizer-supplied kit.
+Estado: cinco funciones de producto implementadas localmente; su QA de navegador, validación con Bedrock real y despliegue de esta versión siguen pendientes. Especificación del equipo; no sustituye al kit oficial.
 
-## Core story
+## Recorrido principal
 
-As a public-school teacher, I can select a clearly fictional training module, describe my grade, class duration and available resources, generate an editable lesson proposal, save the reviewed session and attach anonymous text evidence after class. The four views are Crear curso, Preparar clase, Revisar sesión and Portafolio. The optional course preview accepts a course name and syllabus text, presents two fixed example modules with their example source excerpts, and asks the teacher to review and confirm that sample before continuing. No student records, file uploads, authentication or generic chat are in scope.
+El docente organiza un sílabo en módulos editables, confirma la propuesta, prepara una sesión con el módulo elegido, mejora un momento, adapta actividades, crea una rúbrica y guarda o imprime su versión revisada. Las cuatro vistas son Crear curso, Preparar clase, Revisar sesión y Portafolio. También puede omitir el curso y usar módulos ficticios de ejemplo. No se incluyen estudiantes, archivos, autenticación ni chat genérico.
 
-## Acceptance contracts
+## Contratos de producto
 
-The course preview is a static demonstration: it does not analyze the entered syllabus or call AI, and its course name and syllabus are stored only in the browser when localStorage is available. The preview is not a server-side course and its context is not associated with saved portfolio sessions. Teachers can skip it and prepare a class directly. Real syllabus extraction is future work, not an implemented feature.
+1. `POST /courses/generate` recibe `{name,syllabus}` y usa el proveedor configurado para devolver hasta seis módulos con `id`, `title`, `objective`, `text` y procedencia. El docente puede editar título, objetivo y fuente antes de confirmar. El borrador del curso/sílabo permanece en localStorage cuando está disponible; no existe un registro servidor del curso completo.
+2. `GET /modules` conserva las fuentes ficticias de ejemplo. `POST /sessions/generate` acepta `moduleId`, `grade`, `context`, `duration` y, para un curso propio, `customModule:{id,title,objective,text}` y `courseName`. El módulo real editado alimenta la generación; el servidor persiste la sesión con su fuente, objetivo del módulo y nombre del curso. Objetivo, inicio, desarrollo, cierre, evaluación y tres tiempos son editables; los tiempos deben sumar los 30–180 minutos solicitados.
+3. `POST /sessions/{id}/rubric` usa `{lesson}` con las ediciones actuales y devuelve criterios con descriptores Inicio / En proceso / Logrado. El docente edita la rúbrica y la guarda con `PUT /sessions/{id}`; lecturas individuales y portafolio la recuperan.
+4. `POST /sessions/{id}/improve` recibe `{lesson,phase,instruction}`. La UI aplica únicamente el texto del momento elegido (inicio, desarrollo o cierre), sin cambiar otros textos ni ningún tiempo.
+5. `POST /sessions/{id}/adapt` adapta el borrador actual. Los tres botones son Sin internet, Aula multigrado y Pocos materiales. Se conservan los tiempos de cada momento y la rúbrica existente; el docente revisa o regenera la rúbrica si corresponde. Rúbrica, mejora y adaptación no guardan automáticamente: el docente confirma con Guardar sesión.
+6. Imprimir / guardar PDF incluye el contenido completo de la versión actual —también ediciones sin guardar—, fuente, contexto, momentos, tiempos y rúbrica. Se genera una ficha de texto normal, no controles recortados. PDF usa el diálogo del navegador; no existe servicio PDF.
 
-1. GET /modules returns labeled fictional source text. POST /sessions/generate uses that source plus bounded teacher context and persists an editable draft. Objective, opening, development, closing, assessment and three durations are required. Durations must sum to the requested 30–180 minutes.
-2. PUT /sessions/{id}, GET /sessions/{id} and GET /sessions preserve reviewed lessons. GET/POST /sessions/{id}/evidence persists only text linked to an existing session; another session must not see it. A shared prototype is not an authenticated ownership system.
-3. Ordinary navigation preserves unsaved lesson and evidence drafts; browser-local backup survives reload where localStorage is available. Offline/provider failures are disclosed, preserve user inputs and permit retry. Browser storage is not a server save or a multi-device synchronization guarantee.
-4. Demonstration mode states exactly: “Modo demostración: respuesta de ejemplo, no IA real”. AWS defaults to Bedrock Converse and never silently substitutes a sample. Provider validation errors return 400, exhausted throttling/other provider errors return 502. Model JSON is independently validated.
-5. GET /health returns 200 with status=ok and configurable team=T054. Item endpoints create/read/list opaque values exactly, including Unicode and whitespace. DynamoDB list scans follow pagination and return at most 100 item records, excluding other entity kinds.
-6. Jobs return 202 immediately with jobId; reads first report queued, then done after readyAt=creation+2s, with output equal to input[::-1]. This is disclosed persisted lazy completion, not a queue or agent.
-7. Unknown identifiers/routes return 404; known unsupported methods return 405 with Allow. GET /app returns HTML directly. User/model text is rendered with safe text APIs, not HTML injection. Controls are labeled, keyboard accessible and responsive.
+## Persistencia y procedencia
 
-## Limits and remaining validation
+`PUT /sessions/{id}`, `GET /sessions/{id}` y `GET /sessions` conservan sesiones revisadas, fuente, rúbrica y adaptación. `GET/POST /sessions/{id}/evidence` conserva únicamente texto asociado a una sesión existente; otra sesión no lo recibe. El prototipo compartido no ofrece propiedad autenticada.
 
-Requests are capped at 50,000 encoded characters; item/job values at 2,000 characters, grade at 80, teacher context at 1,200, title at 160, objective at 1,000, phase text at 3,500 each, assessment at 2,000 and evidence at 3,000. Lists expose at most 100 matching records. Real Bedrock access/model availability, AWS timing, infrastructure deployment, installed Kiro compatibility and official challenge alignment remain pending.
+Navegación ordinaria conserva borradores de sesión y evidencia; localStorage permite recuperarlos tras recarga cuando está disponible. Fallos de red/proveedor se muestran sin descartar entradas y permiten reintento. El almacenamiento local no es guardado servidor ni sincronización multidispositivo.
+
+Bedrock usa Converse para organizar sílabos, generar sesiones, rúbricas, mejoras y adaptaciones. Demo es determinista y explícito en todas esas operaciones: «Modo demostración: respuesta de ejemplo, no IA real». Nunca hay fallback silencioso. Errores de validación del proveedor devuelven 400; throttling agotado, otros fallos o JSON de modelo inválido devuelven 502. El servidor valida la salida y preserva la procedencia al editar.
+
+## Contratos base conservados
+
+- `GET /health`: 200, `status=ok`, equipo configurable con predeterminado **T084**. `GET /config` expone modo y equipo.
+- Items conservan valores opacos exactamente, incluidos Unicode y espacios. La lista devuelve hasta los 100 más recientes; DynamoDB pagina hasta un presupuesto de 10 000 registros evaluados y falla en vez de ocultar una clasificación incompleta.
+- Jobs devuelven 202 con `jobId`; una lectura anterior a `readyAt=creación+2s` informa queued, y una posterior completa done con `input[::-1]`. Es finalización diferida persistida, no cola ni agente.
+- Rutas/identificadores desconocidos: 404. Métodos no admitidos en rutas conocidas: 405 con Allow. `/app` sirve HTML directamente. Texto del usuario/modelo se renderiza como texto; controles etiquetados y diseño adaptable requieren QA real.
+
+## Límites y evidencia pendiente
+
+Cuerpo: 50 000 caracteres recibidos; nombre de curso/sílabo: 160/12 000; módulo personalizado: id 80, título 160, objetivo 1 000, fuente 3 500; grado/contexto/indicación: 80/1 200/1 200; objetivo de sesión 1 000, fase 3 500, evaluación 2 000, evidencia 3 000; nonce 1–2 000. Rúbrica: 1–6 criterios de hasta 300 caracteres y tres descriptores de hasta 700 cada uno. Listas: hasta 100 registros coincidentes.
+
+Las pruebas locales y respuestas simuladas no prueban Bedrock real ni publicación. Siguen pendientes QA de las cinco funciones en navegador, modelo/IAM de esta versión, despliegue y contratos públicos, tiempos AWS, compatibilidad de Kiro y alineación con el kit oficial.

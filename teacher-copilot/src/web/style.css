@@ -39,3 +39,20 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 .help{font-size:13px}
 .sidebar nav button{min-height:48px}
 @media(max-width:700px){.page-heading h1{font-size:25px}.sidebar nav button{font-size:12px}.step{font-size:11px}}
+
+.ai-toolkit,.rubric-card{margin-top:22px}.tool-grid{display:grid;grid-template-columns:1fr 1fr;gap:28px}.tool-grid h3{font-family:Georgia,serif;font-weight:400;margin:18px 0 0}.tool-grid button{margin-top:14px}.preset-actions{display:flex;flex-wrap:wrap;gap:8px}.preset-actions button{font-size:13px}.rubric-editor{display:grid;gap:16px;margin-top:18px}.rubric-row{border:1px solid var(--line);border-radius:4px;padding:14px 18px 20px;min-width:0}.rubric-row legend{font-family:Georgia,serif;padding:0 8px}.rubric-row label{margin-top:12px}.rubric-row textarea{min-height:100px}.export-actions{display:flex;align-items:center;gap:18px;margin:20px 0}.export-actions .help{max-width:440px;margin:0}.print-sheet{display:none}.ai-toolkit .notice{margin:18px 0 0}.course-module-list textarea{min-height:100px}
+@media(max-width:700px){.tool-grid{grid-template-columns:1fr;gap:12px}.export-actions{align-items:flex-start;flex-direction:column}.rubric-card .portfolio-toolbar{align-items:flex-start;flex-direction:column}}
+@page{size:A4;margin:17mm}
+@media print{
+  :root,body{background:white;color:#111;font-size:11pt;line-height:1.5}
+  .topbar,.layout,.skip{display:none!important}
+  .print-sheet{display:block!important;max-width:none;padding:0;margin:0}
+  .print-sheet h1{font-size:24pt;margin:8px 0 14px;letter-spacing:0}
+  .print-sheet h2{font-size:14pt;margin:24px 0 8px;break-after:avoid}
+  .print-sheet h3{font-size:12pt;break-after:avoid;margin:16px 0 8px}
+  .print-sheet h4{font-size:11pt;margin:10px 0 3px;break-after:avoid}
+  .print-sheet p{white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 9px}
+  .print-sheet .eyebrow,.print-meta{font-size:9pt;color:#555}
+  .print-rubric{border-top:1px solid #ccc;padding-top:4px}
+  .print-sheet section{height:auto;overflow:visible;break-inside:auto}
+}

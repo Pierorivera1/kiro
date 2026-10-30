@@ -1,21 +1,38 @@
-# Teacher copilot design
+# Diseño del copiloto docente
 
-## Runtime and data
+## Ejecución y almacenamiento
 
-One Python Lambda handler routes both HTTP API requests and static assets. GET /app directly serves index.html with text/html; absolute /app/assets paths avoid trailing-slash assumptions. The local ThreadingHTTPServer translates requests into the same HTTP API v2 event shape and invokes the same handler. Stdlib SQLite persists ignored .local/copiloto.sqlite3; deployment selects DynamoDB through TABLE_NAME.
+Un handler Python Lambda sirve API y recursos estáticos. `/app` entrega HTML directamente; `/app/assets` usa rutas absolutas. El servidor local traduce HTTP a eventos API Gateway v2 y ejecuta el mismo handler. SQLite persiste en `.local/copiloto.sqlite3` ignorado por Git; `TABLE_NAME` selecciona DynamoDB en AWS.
 
-Storage separates item, job, session and evidence kinds. DynamoDB uses pk=<kind>#<uuid>, kind and owner metadata plus a JSON data payload. JSON avoids DynamoDB float serialization for job timestamps. Strong reads and filtered scan pagination support immediate verification. The small prototype uses capped scans, not an unbounded production-scale query design. Evidence owner is its sessionId; this is referential association, not user authentication. There is no private per-user isolation.
+Items, jobs, sesiones y evidencias son entidades distintas. DynamoDB usa `pk=<kind>#<uuid>`, metadatos `kind`/owner y un payload JSON que evita serialización float de timestamps. Lecturas fuertes y scans paginados permiten verificar persistencia. Items clasifica hasta 100 recientes con presupuesto explícito de 10 000 registros evaluados; no es un índice de producción. Evidencias se asocian por sessionId, no por identidad autenticada.
 
-## Generation and trust
+## Flujo del sílabo a la sesión
 
-The client sends moduleId, grade, context and duration. The server selects source text from its own module catalog and whitelists the context. Bedrock Converse receives an instruction/data separation, a provider-independent JSON schema description, maxTokens=1800 and temperature=0.3. Output is parsed and independently validated. Three attempts only for throttling, with 0.25s and 0.5s backoff; SDK retries are disabled so attempts do not multiply. Connect/read timeouts bound provider work under the API timeout. A configured same-region foundation model is IAM-scoped; profile-based routing requires deliberate policy extension.
+`POST /courses/generate` envía nombre y sílabo al generador configurado y devuelve módulos validados; el servidor asigna sus ids. La UI permite editar título, objetivo y fuente, y exige confirmar antes de usar esa ruta. El curso completo permanece como borrador local; no se crea una entidad servidor de curso.
 
-Demonstration generation is a separate explicit provider. Provenance is assigned by the server and preserved on edits. Provider failures are errors, never AI-labeled fallback. The teacher has final responsibility for relevance and accuracy. Inputs and model responses are not logged. The browser uses textContent/value and a restrictive Content Security Policy.
+La preparación envía el módulo elegido como `customModule:{id,title,objective,text}`, además de `courseName`, grado, contexto y duración. Sin curso confirmado se usa el catálogo ficticio servidor. El generador recibe la fuente real editada. La sesión se crea durablemente como draft e incluye `module`, `moduleTitle`, `moduleId`, `courseName` y procedencia, además de los campos pedagógicos. Guardar cambia el estado a saved sin sustituir su fuente/procedencia.
 
-## Browser state and constraints
+## Herramientas sobre la edición actual
 
-The buildless UI has four semantic views—Crear curso, Preparar clase, Revisar sesión and Portafolio—and no framework dependency. The optional course flow collects a name and syllabus text, shows two predefined example modules and their example source excerpts, and requires an explicit teacher review before confirmation. Custom syllabus text is retained as a local draft but is not analyzed or sent to AI. Course context stays in localStorage when available, is not a server-side course, and is not attached to saved sessions. The teacher can skip the course flow. Real syllabus extraction is future work, not an implemented feature. Current preparation, per-session unsaved edits and per-session evidence drafts persist to localStorage; records persist independently on the server. Navigation does not discard edits, and an edit during a save request is not overwritten by the older response. Storage denial is disclosed. The prototype is shared and unauthenticated: use fictional/anonymized data only, isolate any evaluation deployment, and add access controls before real teacher/student use.
+| Operación | Entrada y aplicación |
+| --- | --- |
+| Rúbrica | `{lesson}` actual → criterios y tres niveles; UI editable. `PUT /sessions/{id}` persiste la rúbrica con la sesión. |
+| Mejorar momento | `{lesson,phase,instruction}` → solo texto seleccionado; la UI conserva otros textos y todos los tiempos. |
+| Adaptar al aula | `{lesson,instruction}` desde Sin internet, Aula multigrado o Pocos materiales; conserva tiempos por fase y rúbrica existente. |
+| Imprimir / PDF | Ficha de texto creada con el borrador actual completo, fuente y rúbrica; `window.print()` abre el diálogo del navegador. No hay servicio PDF. |
 
-## Infrastructure and unresolved evidence
+Rúbrica, mejora y adaptación son propuestas, no escrituras automáticas. La UI mantiene borradores locales y exige Guardar sesión para persistir sus cambios en servidor. Una respuesta antigua no reemplaza ediciones más recientes. Una adaptación puede requerir regenerar la rúbrica: no se promete realineación automática.
 
-SAM defines HTTP API, Python 3.12 Lambda and on-demand encrypted DynamoDB with only GetItem, PutItem, Scan and the selected foundation model's InvokeModel permission. Resource creation and costs require explicit future approval. No deployment or real Bedrock call has been performed. Kiro hook files are candidates derived from official current and legacy documentation; only independent offline checks are verified, not hook activation.
+## Proveedor y confianza
+
+`DemoGenerator` es explícito y determinista para todas las operaciones; nunca se presenta como IA real. `BedrockGenerator` usa Converse con instrucciones separadas de datos y JSON validado independientemente. Límites de salida: sesión/rúbrica 1 800 tokens, mejora 1 300, adaptación 2 200, curso 2 600; temperatura 0,3. Throttling admite tres intentos totales y backoffs 0,25/0,5 s; retries SDK desactivados. Timeouts connect/read acotan el trabajo. No se promete disponibilidad de un modelo por tener configuración.
+
+Procedencia asignada por servidor; errores se muestran y nunca producen muestras silenciosas. El docente revisa relevancia y exactitud. No se registran entradas ni respuestas del modelo. La UI usa textContent/value y CSP restrictiva. El prototipo es compartido sin autenticación: solo datos ficticios o anónimos, no información escolar confidencial.
+
+## Navegador y límites de validación
+
+Cuatro vistas sin framework: Crear curso, Preparar clase, Revisar sesión, Portafolio. localStorage conserva curso, preparación, borradores por sesión y evidencias no enviadas cuando está disponible; denegación de almacenamiento se comunica. El guardado servidor es independiente del respaldo local. La ficha de impresión usa párrafos de texto para no recortar campos extensos.
+
+SAM describe HTTP API, Lambda Python 3.12, DynamoDB cifrado on-demand y permisos GetItem/PutItem/Scan de la tabla e InvokeModel del modelo regional configurado. Perfiles de inferencia necesitan una decisión IAM explícita. **T084** es el equipo esperado, aunque el nombre histórico del stack empieza con t054.
+
+La validación local histórica de SAM y el despliegue anterior no acreditan estas funciones nuevas en AWS. QA de navegador, llamadas reales y despliegue/verificación de esta versión siguen pendientes. Hooks Kiro actuales y legacy son artefactos candidatos; el legacy está deshabilitado y no ejecutado. Pruebas offline independientes no demuestran activación de hooks.

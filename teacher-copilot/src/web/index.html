@@ -30,17 +30,17 @@
     </aside>
     <main id="main">
       <div id="mode" class="mode" role="status">Consultando el modo de generación…</div>
-      <div id="error" class="notice error" role="alert" hidden><p id="error-text"></p><button id="retry" type="button" hidden>Reintentar carga</button></div>
+      <div id="error" class="notice error" role="alert" tabindex="-1" hidden><p id="error-text"></p><button id="retry" type="button" hidden>Reintentar carga</button></div>
       <p id="status" class="status" role="status" aria-live="polite"></p>
       <section id="course" class="view" aria-labelledby="course-title">
-        <header class="page-heading"><h1 id="course-title" tabindex="-1">Preparar curso</h1><p>Dale un nombre a tu curso y revisa cómo se organizarían sus módulos.</p></header>
+        <header class="page-heading"><h1 id="course-title" tabindex="-1">Del sílabo a tu próxima clase</h1><p>La IA organiza tu material en módulos. Tú ajustas la ruta y eliges por dónde empezar.</p></header>
         <ol class="course-steps" aria-label="Creación del curso">
           <li data-course-step="0" aria-current="step"><span>1</span> Tu curso</li><li data-course-step="1"><span>2</span> Sílabo</li><li data-course-step="2"><span>3</span> Revisar módulos</li>
         </ol>
-        <p class="notice" id="course-demo-notice"><strong>Vista previa de demostración:</strong> los módulos son ejemplos fijos. Tu sílabo no se analiza ni se envía a la IA. El curso y el sílabo solo se conservan en este navegador, no en AWS.</p>
+        <p class="notice" id="course-demo-notice">Al generar módulos, el nombre y el sílabo se envían al servicio de IA. El borrador del curso se conserva en este navegador; la fuente elegida se guarda con cada sesión.</p>
         <section id="course-details" class="card course-panel" aria-labelledby="course-details-heading">
           <div class="card-heading"><span class="section-number" aria-hidden="true">A</span><h2 id="course-details-heading" tabindex="-1">¿Qué curso vas a preparar?</h2></div>
-          <p class="help">Partimos de un curso ficticio. Puedes cambiar el nombre para explorar el recorrido.</p>
+          <p class="help">Incluimos material ficticio para empezar. Puedes reemplazarlo por otro sílabo sin datos personales.</p>
           <label for="course-name">Nombre del curso</label><input id="course-name" maxlength="160" required placeholder="Ej. Aprendizajes para nuestra comunidad" aria-describedby="course-privacy">
           <p class="help" id="course-privacy">Usa solo información ficticia. No incluyas datos personales ni material confidencial.</p>
           <div class="action-bar"><p>Primero la ruta.<br><span>Después, una clase a la vez.</span></p><button type="button" id="course-next" class="primary">Añadir sílabo →</button></div>
@@ -48,20 +48,21 @@
         <section id="course-syllabus" class="card course-panel" aria-labelledby="course-syllabus-heading" hidden>
           <div class="card-heading"><span class="section-number" aria-hidden="true">B</span><h2 id="course-syllabus-heading" tabindex="-1">El material que da forma al curso</h2></div>
           <label for="syllabus">Texto del sílabo</label><textarea id="syllabus" rows="9" maxlength="12000" aria-describedby="syllabus-help"></textarea>
-          <p class="help" id="syllabus-help">Incluimos un sílabo ficticio. Puedes pegar otro texto para conservar un borrador, pero esta vista previa solo muestra los dos módulos de ejemplo: no analiza ni envía tu texto a la IA.</p>
-          <div class="action-bar"><button type="button" class="text-button" id="course-back-details">← Nombre del curso</button><button type="button" class="primary" id="course-preview">Ver módulos de ejemplo →</button></div>
+          <p class="help" id="syllabus-help">Pega objetivos, unidades y contenidos. La propuesta se basará en este texto; después podrás editar cada módulo.</p>
+          <div class="action-bar"><button type="button" class="text-button" id="course-back-details">← Nombre del curso</button><button type="button" class="primary" id="course-preview" disabled>Organizar sílabo con IA →</button></div>
+          <p id="course-progress" class="help" role="status" hidden></p>
         </section>
         <section id="course-modules" class="course-panel" aria-labelledby="course-modules-heading" hidden>
-          <div class="portfolio-toolbar"><h2 id="course-modules-heading" tabindex="-1">Dos módulos, una muestra para revisar</h2><span class="tag">Muestra fija · sin IA</span></div>
+          <div class="portfolio-toolbar"><h2 id="course-modules-heading" tabindex="-1">Tu ruta de aprendizaje</h2><span class="tag" id="course-source-label"></span></div>
           <p id="syllabus-preview-note" class="notice" role="status"></p>
           <div class="card course-confirmation">
-            <p>Revisa los módulos de ejemplo y continúa para generar una sesión editable. La muestra no se extrae de tu texto.</p>
-            <button type="button" class="primary" id="course-confirm">Confirmar módulos y preparar clase →</button>
+            <p>Edita títulos, objetivos y material de partida. Confirma la ruta para preparar una sesión desde el módulo que elijas.</p>
+            <button type="button" class="primary" id="course-confirm" disabled>Usar estos módulos y preparar clase →</button>
           </div>
-          <details class="sample-syllabus"><summary>Consultar el sílabo de ejemplo usado en esta muestra</summary><p id="sample-syllabus-text"></p></details>
+          <details class="sample-syllabus"><summary>Consultar el sílabo de partida</summary><p id="sample-syllabus-text"></p></details>
           <div id="course-module-list" class="course-module-list"></div>
           <div class="card course-confirmation">
-            <p class="help">El nombre del curso es contexto local de la vista previa; no se asociará a las sesiones guardadas en el portafolio.</p>
+            <p class="help">La sesión conservará el nombre del curso y el contenido del módulo elegido, incluso después de volver al portafolio.</p>
             <div class="action-bar"><button type="button" class="text-button" id="course-back-syllabus">← Volver al sílabo</button></div>
           </div>
         </section>
@@ -69,15 +70,15 @@
       </section>
       <section id="prepare" class="view" aria-labelledby="prepare-title" hidden>
         <header class="page-heading"><h1 id="prepare-title" tabindex="-1">Preparar clase</h1><p>Elige un módulo y describe el contexto de tu aula.</p></header>
-        <div id="course-context" class="notice course-context" hidden><div><span class="eyebrow">CURSO LOCAL · MÓDULOS DE EJEMPLO</span><h2 id="prepared-course-name"></h2><p>Usarás 2 módulos de muestra. Este contexto no se guarda con las sesiones.</p></div><button type="button" class="text-button" data-go="course">Revisar curso →</button></div>
+        <div id="course-context" class="notice course-context" hidden><div><span class="eyebrow">TU CURSO · RUTA EDITABLE</span><h2 id="prepared-course-name"></h2><p id="prepared-course-note"></p></div><button type="button" class="text-button" data-go="course">Revisar curso →</button></div>
         <form id="prepare-form">
           <div class="prepare-grid">
             <section class="card source-card" aria-labelledby="source-heading">
               <div class="card-heading"><span class="section-number" aria-hidden="true">A</span><h2 id="source-heading">Material de partida</h2></div>
               <label for="module">Módulo de formación</label>
               <select id="module" required disabled><option value="">Cargando módulos…</option></select>
-              <div class="source"><span class="tag pale">Muestra ficticia</span><h3 id="module-title">Tu fuente aparecerá aquí</h3><p id="module-text">Estamos cargando el material de ejemplo.</p></div>
-              <p class="help">Fragmentos creados para este prototipo. No son cursos ni materiales oficiales del Ministerio de Educación.</p>
+              <div class="source"><span class="tag pale" id="module-label">Muestra ficticia</span><h3 id="module-title">Tu fuente aparecerá aquí</h3><p id="module-objective" class="help"></p><p id="module-text">Estamos cargando el material de ejemplo.</p></div>
+              <p class="help">La fuente seleccionada guía la propuesta. Los ejemplos incluidos no son materiales oficiales del Ministerio de Educación.</p>
             </section>
             <section class="card" aria-labelledby="context-heading">
               <div class="card-heading"><span class="section-number" aria-hidden="true">B</span><h2 id="context-heading">El contexto de tu aula</h2></div>
@@ -87,6 +88,7 @@
             </section>
           </div>
           <div class="action-bar"><p>Una propuesta, no una receta.<br><span>Podrás editar cada parte y sus tiempos.</span></p><button type="submit" class="primary" id="generate" disabled>Preparando servicio…</button></div>
+          <p id="generation-progress" class="notice" role="status" aria-live="polite" hidden></p>
         </form>
       </section>
       <section id="review" class="view" aria-labelledby="review-title" hidden>
@@ -96,6 +98,7 @@
           <div class="review-meta"><p id="lesson-meta"></p><span class="tag" id="lesson-state">Borrador</span></div>
           <p id="provenance" class="notice"></p>
           <section class="card lesson-card" aria-label="Contenido editable de la sesión">
+            <p id="generated-summary" class="notice"></p>
             <label for="lesson-title">Título de la sesión</label><input id="lesson-title" maxlength="160" required>
             <label for="objective">Objetivo de aprendizaje</label><textarea id="objective" rows="3" maxlength="1000" required></textarea>
             <div class="phase"><div class="phase-heading"><label for="opening">Inicio</label><label class="minutes" for="opening-minutes"><input id="opening-minutes" type="number" min="1" max="180" step="1" required> min</label></div><textarea id="opening" rows="3" maxlength="3500" required></textarea></div>
@@ -104,7 +107,22 @@
             <p id="time-total" class="help" aria-live="polite"></p>
             <label for="assessment">Evaluación y evidencia esperada</label><textarea id="assessment" rows="4" maxlength="2000" required></textarea>
           </section>
+          <section class="card ai-toolkit" aria-labelledby="toolkit-title">
+            <div class="card-heading"><span class="section-number" aria-hidden="true">✦</span><h2 id="toolkit-title">Hazla tuya con IA</h2></div>
+            <p class="help">Trabajamos sobre esta versión, incluidas tus ediciones. Los cambios quedan como borrador hasta que guardes.</p>
+            <div class="tool-grid">
+              <div><h3>Mejorar un momento</h3><label for="improve-phase">Qué parte</label><select id="improve-phase"><option value="opening">Inicio</option><option value="development" selected>Desarrollo</option><option value="closing">Cierre</option></select><label for="improve-instruction">Qué quieres cambiar</label><input id="improve-instruction" maxlength="1200" value="Hazlo más práctico y participativo, con pasos concretos."><button id="improve-section" type="button">Mejorar esta parte</button><p class="help">Solo cambia su texto; conserva los demás momentos y todos los tiempos.</p></div>
+              <div><h3>Adaptar a mi aula</h3><p class="help">Mantiene el propósito y los tiempos; propone actividades y recursos para este escenario.</p><div class="preset-actions"><button id="adapt-offline" type="button">Sin internet</button><button id="adapt-multigrade" type="button">Aula multigrado</button><button id="adapt-materials" type="button">Pocos materiales</button></div><p id="adaptation-note" class="help"></p></div>
+            </div>
+            <p id="ai-action-progress" class="notice" role="status" aria-live="polite" hidden></p>
+          </section>
+          <section class="card rubric-card" aria-labelledby="rubric-title">
+            <div class="portfolio-toolbar"><h2 id="rubric-title">Rúbrica de la sesión</h2><button id="generate-rubric" type="button">Crear rúbrica con IA</button></div>
+            <p id="rubric-note" class="help">Criterios observables y tres niveles de logro, alineados con el objetivo y las actividades actuales.</p>
+            <div id="rubric-editor" class="rubric-editor"></div>
+          </section>
           <div class="action-bar"><p id="save-note">Tus cambios se conservan en este navegador.<br><span>Guarda para actualizar la sesión en el portafolio.</span></p><button class="primary" id="save-lesson" type="submit">Guardar sesión <span aria-hidden="true">✓</span></button></div>
+          <div class="export-actions"><button id="print-lesson" type="button">Imprimir / guardar PDF</button><p class="help">Incluye tu versión actual y la rúbrica completa. En el diálogo de impresión elige «Guardar como PDF».</p></div>
           <button type="button" class="text-button" data-go="portfolio">Ir al portafolio →</button>
         </form>
       </section>
@@ -122,5 +140,6 @@
       <footer class="footer"><span>Diseñado para acompañar, no para reemplazar tu criterio.</span><span>Prototipo compartido · usa solo datos ficticios o anónimos.</span></footer>
     </main>
   </div>
+  <article id="print-sheet" class="print-sheet" aria-label="Ficha de sesión para imprimir"></article>
 </body>
 </html>

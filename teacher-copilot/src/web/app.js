@@ -12,6 +12,8 @@
   const phases = ['opening', 'development', 'closing'];
   let state = { prep: null, drafts: {}, current: null, evidenceDrafts: {}, activePortfolio: null };
   let modules = [];
+  let sampleModules = [];
+  let modelMode = 'demo';
   let sessions = [];
   let currentView = 'course';
   let storageAvailable = true;
@@ -82,23 +84,63 @@
   function showCourseContext() {
     $('course-context').hidden = !state.course.confirmed;
     $('prepared-course-name').textContent = state.course.confirmed ? state.course.name : '';
+    $('prepared-course-note').textContent = `${state.course.modules.length} módulos revisados. La fuente elegida se guardará con tu sesión.`;
   }
   function showCoursePreview() {
-    const custom = state.course.syllabus !== SAMPLE_SYLLABUS;
-    $('syllabus-preview-note').textContent = custom
-      ? 'Tu texto se conserva como borrador. Estos módulos pertenecen al sílabo de ejemplo, no se extrajeron de tu texto. Al continuar prepararás con esta muestra fija.'
-      : 'Esta es una segmentación predefinida del sílabo ficticio de ejemplo. No se ha ejecutado IA ni se ha creado un curso en el servidor.';
-    $('course-confirm').disabled = !state.course.name.trim();
+    $('syllabus-preview-note').textContent = !state.course.modules.length ? 'Organiza el sílabo para obtener una primera propuesta de módulos.'
+      : state.course.provenance === 'demo' ? 'Propuesta de demostración, no IA real. Puedes editarla antes de continuar.'
+        : 'Módulos propuestos por Amazon Bedrock a partir de tu sílabo. Ajusta el contenido y los objetivos antes de continuar.';
+    $('course-source-label').textContent = state.course.provenance === 'bedrock' ? 'Propuesta con IA · editable' : 'Ejemplo · sin IA real';
+    $('course-confirm').disabled = !state.course.name.trim() || !state.course.modules.length;
+    $('sample-syllabus-text').textContent = state.course.syllabus;
+  }
+  function courseModulesChanged() {
+    // Teacher edits keep an already confirmed route usable, with its latest source.
+    const selected = $('module').value;
+    courseDirty = true;
+    showCourseContext();
+    refreshModules(selected);
+    if (state.course.confirmed) state.prep = readPrep();
+    persist();
+  }
+  function renderCourseModules() {
+    const container = $('course-module-list');
+    container.replaceChildren();
+    state.course.modules.forEach((module, index) => {
+      const card = node('article', undefined, 'card');
+      card.append(node('span', `Módulo ${index + 1}`, 'tag pale'));
+      for (const [key, label, maximum] of [['title', 'Título', 160], ['objective', 'Objetivo del módulo', 1000], ['text', 'Material de partida', 3500]]) {
+        const input = node(key === 'title' ? 'input' : 'textarea');
+        input.id = `course-module-${index}-${key}`;
+        input.value = module[key];
+        input.maxLength = maximum;
+        input.rows = key === 'text' ? 5 : 3;
+        const caption = node('label', label);
+        caption.htmlFor = input.id;
+        input.addEventListener('input', () => { module[key] = input.value; courseModulesChanged(); });
+        card.append(caption, input);
+      }
+      container.append(card);
+    });
+  }
+  function refreshModules(preferred) {
+    modules = state.course.confirmed && state.course.modules.length ? state.course.modules : sampleModules;
+    $('module').replaceChildren(...modules.map(module => { const option = node('option', module.title); option.value = module.id; return option; }));
+    $('module').value = modules.some(module => module.id === preferred) ? preferred : modules[0]?.id || '';
+    showModule();
   }
   function captureCourse() {
+    const sourceChanged = state.course.syllabus !== $('syllabus').value;
     courseDirty = courseDirty || state.course.name !== $('course-name').value || state.course.syllabus !== $('syllabus').value;
     state.course.name = $('course-name').value;
     state.course.syllabus = $('syllabus').value;
     state.course.reviewed = false;
     state.course.confirmed = false;
+    if (sourceChanged) { state.course.modules = []; renderCourseModules(); }
     showCoursePreview();
     showCourseContext();
     persist();
+    if (sampleModules.length) refreshModules();
   }
   function initializeCourse() {
     const saved = state.course;
@@ -107,28 +149,32 @@
       syllabus: typeof saved?.syllabus === 'string' ? saved.syllabus.slice(0, 12000) : SAMPLE_SYLLABUS,
       step: [0, 1, 2].includes(saved?.step) ? saved.step : 0,
       reviewed: saved?.reviewed === true,
-      confirmed: saved?.confirmed === true && saved?.reviewed === true && typeof saved?.name === 'string' && !!saved.name.trim()
+      modules: Array.isArray(saved?.modules) ? saved.modules : [],
+      provenance: saved?.provenance || 'demo',
+      confirmed: saved?.confirmed === true && Array.isArray(saved?.modules) && !!saved.modules.length
     };
     $('course-name').value = state.course.name;
     $('syllabus').value = state.course.syllabus;
-    $('sample-syllabus-text').textContent = SAMPLE_SYLLABUS;
-    for (const [index, module] of SAMPLE_MODULES.entries()) {
-      const card = node('article', undefined, 'card');
-      card.append(node('span', `Módulo ${index + 1} · muestra fija`, 'tag pale'), node('h3', module.title), node('p', 'FRAGMENTO DEL SÍLABO DE EJEMPLO', 'eyebrow'), node('blockquote', module.text));
-      $('course-module-list').append(card);
-    }
+    renderCourseModules();
     showCoursePreview();
     showCourseContext();
     courseStep(state.course.step, false);
   }
   function readPrep() {
-    return { moduleId: $('module').value, grade: $('grade').value, duration: Number($('duration').value), context: $('context').value };
+    const prep = { moduleId: $('module').value, grade: $('grade').value, duration: Number($('duration').value), context: $('context').value };
+    if (state.course.confirmed) {
+      prep.customModule = modules.find(module => module.id === prep.moduleId);
+      prep.courseName = state.course.name;
+    }
+    return prep;
   }
   function capturePrep() { state.prep = readPrep(); persist(); }
   function showModule() {
     const module = modules.find(item => item.id === $('module').value);
     $('module-title').textContent = module ? module.title : 'Selecciona un módulo';
     $('module-text').textContent = module ? module.text : '';
+    $('module-objective').textContent = module?.objective || '';
+    $('module-label').textContent = state.course.confirmed ? 'Módulo de tu curso' : 'Muestra ficticia';
   }
   function captureLesson() {
     const lesson = state.drafts[state.current];
@@ -136,6 +182,7 @@
     lesson.title = $('lesson-title').value;
     lesson.objective = $('objective').value;
     lesson.assessment = $('assessment').value;
+    showSummary(lesson);
     for (const phase of phases) lesson[phase] = { text: $(phase).value, minutes: Number($(phase + '-minutes').value) };
     lesson.localDirty = true;
     persist();
@@ -147,11 +194,107 @@
     $('time-total').textContent = `Tiempo planificado: ${total} de ${lesson.duration} minutos. ${total === lesson.duration ? 'Los tiempos coinciden.' : 'Ajusta los tiempos antes de guardar.'}`;
     $('time-total').classList.toggle('warning', total !== lesson.duration);
   }
+  function showSummary(lesson) {
+    $('generated-summary').textContent = `Sesión actual: ${lesson.title}. Objetivo: ${lesson.objective}`;
+  }
+  function renderRubric(lesson) {
+    const container = $('rubric-editor');
+    container.replaceChildren();
+    $('generate-rubric').textContent = lesson.rubric?.length ? 'Regenerar rúbrica con IA' : 'Crear rúbrica con IA';
+    $('rubric-note').textContent = lesson.rubric?.length
+      ? `${lesson.rubricProvenance === 'demo' ? 'Rúbrica de demostración, no IA real' : 'Rúbrica propuesta con IA'}. Edita cualquier criterio o nivel; se guardará con la sesión.`
+      : 'Criterios observables y tres niveles de logro, alineados con el objetivo y las actividades actuales.';
+    (lesson.rubric || []).forEach((row, index) => {
+      const card = node('fieldset', undefined, 'rubric-row');
+      card.append(node('legend', `Criterio ${index + 1}`));
+      for (const [key, label] of [['criterion', 'Criterio observable'], ['beginning', 'Inicio'], ['developing', 'En proceso'], ['achieved', 'Logrado']]) {
+        const field = node(key === 'criterion' ? 'input' : 'textarea');
+        field.id = `rubric-${index}-${key}`;
+        field.value = row[key];
+        field.maxLength = key === 'criterion' ? 300 : 700;
+        field.rows = 3;
+        const caption = node('label', label);
+        caption.htmlFor = field.id;
+        field.addEventListener('input', () => { row[key] = field.value; lesson.localDirty = true; persist(); $('lesson-state').textContent = 'Cambios sin guardar'; });
+        card.append(caption, field);
+      }
+      container.append(card);
+    });
+  }
+  const aiButtons = ['improve-section', 'adapt-offline', 'adapt-multigrade', 'adapt-materials', 'generate-rubric'];
+  async function refineLesson(kind, details, message) {
+    captureLesson();
+    const identifier = state.current;
+    const draft = state.drafts[identifier];
+    const snapshot = structuredCopy(draft);
+    clearError();
+    aiButtons.forEach(id => { $(id).disabled = true; });
+    $('ai-action-progress').hidden = false;
+    $('ai-action-progress').textContent = message;
+    try {
+      const result = await api(`/sessions/${identifier}/${kind}`, 'POST', { lesson: snapshot, ...details });
+      const current = state.drafts[identifier];
+      if (kind === 'rubric') {
+        current.rubric = result.rubric;
+        current.rubricProvenance = result.provenance;
+      } else if (kind === 'improve') {
+        if (current[details.phase].text !== snapshot[details.phase].text) {
+          notice('Conservamos la edición que hiciste mientras trabajaba la IA. Puedes volver a mejorar este momento.');
+          return;
+        }
+        current[details.phase].text = result.text;
+      } else {
+        if (JSON.stringify(current) !== JSON.stringify(snapshot)) {
+          notice('Conservamos tus cambios recientes. Vuelve a adaptar para incluirlos en la propuesta.');
+          return;
+        }
+        for (const key of ['title', 'objective', 'assessment', ...phases, 'adaptation']) current[key] = result[key];
+      }
+      current.localDirty = true;
+      persist();
+      if (state.current === identifier) showLesson();
+      notice(kind === 'rubric' ? 'Rúbrica lista para editar. Guarda la sesión para conservarla en el portafolio.'
+        : kind === 'improve' ? 'Momento mejorado. Los demás textos y todos los tiempos se conservaron.'
+          : 'Sesión adaptada. Revisa la propuesta y ajusta o regenera la rúbrica si lo necesitas.');
+    } catch (error) { fail(error); $('error').focus(); }
+    finally { aiButtons.forEach(id => { $(id).disabled = false; }); $('ai-action-progress').hidden = true; }
+  }
+  function printLesson() {
+    captureLesson();
+    const lesson = state.drafts[state.current];
+    if (!lesson) return;
+    const sheet = $('print-sheet');
+    sheet.replaceChildren(node('p', 'COPILOTO DEL DOCENTE PÚBLICO · FICHA DE AULA', 'eyebrow'), node('h1', lesson.title),
+      node('p', `${lesson.grade} · ${lesson.duration} minutos${lesson.courseName ? ' · ' + lesson.courseName : ''}`),
+      node('p', lesson.provenance === 'demo' ? DEMO : 'Propuesta con IA · versión revisable por el docente', 'print-meta'));
+    for (const [label, text] of [['Material de partida', lesson.moduleTitle + (lesson.module?.text ? '\n' + lesson.module.text : '')],
+      ['Contexto del aula', lesson.context + (lesson.adaptation ? '\nAdaptación: ' + lesson.adaptation : '')],
+      ['Objetivo de aprendizaje', lesson.objective],
+      ...phases.map((phase, index) => [`${['Inicio', 'Desarrollo', 'Cierre'][index]} · ${lesson[phase].minutes} minutos`, lesson[phase].text]),
+      ['Evaluación y evidencia esperada', lesson.assessment]]) {
+      const section = node('section', undefined, 'print-section');
+      section.append(node('h2', label), node('p', text));
+      sheet.append(section);
+    }
+    if (lesson.rubric?.length) {
+      sheet.append(node('h2', 'Rúbrica de evaluación'));
+      lesson.rubric.forEach((row, index) => {
+        const section = node('section', undefined, 'print-rubric');
+        section.append(node('h3', `${index + 1}. ${row.criterion}`));
+        for (const [key, label] of [['beginning', 'Inicio'], ['developing', 'En proceso'], ['achieved', 'Logrado']]) {
+          section.append(node('h4', label), node('p', row[key]));
+        }
+        sheet.append(section);
+      });
+    }
+    window.print();
+  }
   function showLesson() {
     const lesson = state.drafts[state.current];
     $('review-empty').hidden = !!lesson;
     $('lesson-form').hidden = !lesson;
     if (!lesson) return;
+    showSummary(lesson);
     $('lesson-title').value = lesson.title;
     $('objective').value = lesson.objective;
     $('assessment').value = lesson.assessment;
@@ -162,6 +305,8 @@
     $('lesson-meta').textContent = `${lesson.grade} · ${lesson.duration} minutos · ${lesson.moduleTitle}`;
     $('lesson-state').textContent = lesson.localDirty ? 'Cambios sin guardar' : lesson.status === 'saved' ? 'Sesión guardada' : 'Borrador guardado';
     $('provenance').textContent = (lesson.provenance === 'demo' ? DEMO : 'Propuesta creada con IA de Amazon Bedrock') + '. Revisa la pertinencia, los datos y el lenguaje antes de usarla.';
+    $('adaptation-note').textContent = lesson.adaptation ? `Última adaptación: ${lesson.adaptation}` : '';
+    renderRubric(lesson);
     showTotal(lesson);
   }
   function go(view, focus = true) {
@@ -259,11 +404,16 @@
     busy($('generate'), true, 'Cargando…');
     try {
       const [config, result] = await Promise.all([api('/config'), api('/modules')]);
-      modules = result.modules;
+      sampleModules = result.modules;
+      modelMode = config.mode;
       $('mode').textContent = config.mode === 'demo' ? DEMO : 'IA real: Amazon Bedrock · revisa siempre la propuesta';
       generateLabel = config.mode === 'demo' ? 'Generar propuesta de ejemplo →' : 'Generar sesión con IA →';
       $('team').textContent = config.team;
-      $('module').replaceChildren(...modules.map(module => { const option = node('option', module.title); option.value = module.id; return option; }));
+      refreshModules(state.prep?.moduleId);
+      busy($('course-preview'), false, modelMode === 'demo' ? 'Organizar sílabo de ejemplo →' : 'Organizar sílabo con IA →');
+      $('course-demo-notice').textContent = modelMode === 'demo'
+        ? DEMO + '. El sílabo se procesa como ejemplo; el curso se conserva en este navegador.'
+        : 'Al generar módulos, tu sílabo se envía a Amazon Bedrock. El borrador del curso queda en este navegador; el módulo elegido se guarda con cada sesión.';
       $('module').disabled = false;
       if (state.prep) {
         $('module').value = modules.some(module => module.id === state.prep.moduleId) ? state.prep.moduleId : modules[0].id;
@@ -289,16 +439,47 @@
   });
   $('course-back-details').addEventListener('click', () => courseStep(0));
   $('course-back-syllabus').addEventListener('click', () => courseStep(1));
-  $('course-preview').addEventListener('click', () => { showCoursePreview(); courseStep(2); });
+  $('course-preview').addEventListener('click', async () => {
+    const source = { name: state.course.name, syllabus: state.course.syllabus };
+    clearError();
+    busy($('course-preview'), true, 'Organizando tu sílabo…');
+    $('course-progress').hidden = false;
+    $('course-progress').textContent = 'Preparando una ruta de módulos a partir de tu material…';
+    try {
+      const result = await api('/courses/generate', 'POST', source);
+      if (state.course.name !== source.name || state.course.syllabus !== source.syllabus) {
+        notice('Conservamos tu nuevo texto. Vuelve a organizar el sílabo para generar una ruta con esos cambios.');
+        return;
+      }
+      state.course.modules = result.modules;
+      state.course.provenance = result.provenance;
+      state.course.confirmed = false;
+      renderCourseModules();
+      showCoursePreview();
+      courseStep(2);
+      notice('Ruta lista. Puedes editar cada módulo antes de preparar la primera sesión.');
+    } catch (error) { fail(error); $('error').focus(); }
+    finally { $('course-progress').hidden = true; busy($('course-preview'), false, modelMode === 'demo' ? 'Organizar sílabo de ejemplo →' : 'Organizar sílabo con IA →'); }
+  });
   $('course-confirm').addEventListener('click', () => {
     if (!state.course.name.trim()) return;
     state.course.reviewed = true;
     state.course.confirmed = true;
     persist();
     showCourseContext();
+    refreshModules();
+    capturePrep();
     go('prepare');
-    if (storageAvailable) notice('Módulos de ejemplo confirmados. El curso permanece solo en este navegador.');
+    if (storageAvailable) notice('Ruta confirmada. Elige un módulo para convertirlo en una sesión de clase.');
   });
+  $('improve-section').addEventListener('click', () => refineLesson('improve', { phase: $('improve-phase').value, instruction: $('improve-instruction').value }, 'Mejorando este momento sin cambiar el resto de tu sesión…'));
+  $('generate-rubric').addEventListener('click', () => refineLesson('rubric', {}, 'Creando criterios y niveles para tu versión actual…'));
+  for (const [id, instruction] of [
+    ['adapt-offline', 'Aula sin internet, computadoras ni proyector. Utiliza papel, pizarra y conversación; reemplaza las actividades digitales por alternativas concretas.'],
+    ['adapt-multigrade', 'Aula multigrado: plantea una actividad común con retos diferenciados de menor y mayor complejidad, y colaboración entre niveles.'],
+    ['adapt-materials', 'Aula con pocos materiales: solo pizarra, cuadernos, lápices y objetos reutilizables disponibles. Evita compras, impresiones y equipamiento especializado.']
+  ]) $(id).addEventListener('click', () => refineLesson('adapt', { instruction }, 'Adaptando las actividades a tu aula, sin cambiar los tiempos…'));
+  $('print-lesson').addEventListener('click', printLesson);
   $('retry').addEventListener('click', boot);
   $('refresh').addEventListener('click', loadPortfolio);
   $('prepare-form').addEventListener('input', capturePrep);
@@ -312,6 +493,8 @@
     clearError();
     capturePrep();
     busy($('generate'), true, 'Generando sesión…');
+    $('generation-progress').hidden = false;
+    $('generation-progress').textContent = 'Estamos generando tu sesión. Puede tardar varios segundos; espera en esta página para ver la propuesta.';
     notice(storageAvailable
       ? 'Generando tu sesión; esto puede tardar unos segundos. Conservamos el contexto en este navegador.'
       : 'Generando tu sesión; esto puede tardar unos segundos. El contexto permanece en esta pestaña.');
@@ -322,8 +505,8 @@
       persist();
       go('review');
       notice('Propuesta lista y borrador guardado. Revísala antes de usarla.');
-    } catch (error) { fail(error); }
-    finally { busy($('generate'), false, generateLabel); }
+    } catch (error) { fail(error); $('error').focus(); }
+    finally { $('generation-progress').hidden = true; busy($('generate'), false, generateLabel); }
   });
   $('lesson-form').addEventListener('submit', async event => {
     event.preventDefault();

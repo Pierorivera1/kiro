@@ -8,7 +8,7 @@ import time
 import uuid
 from pathlib import Path
 
-from generation import BedrockGenerator, DemoGenerator, ProviderError, lesson_fields, required_text
+from generation import BedrockGenerator, DemoGenerator, ProviderError, lesson_fields, required_text, rubric_fields
 from storage import DynamoStore, SQLiteStore
 
 MODULES = [
@@ -100,7 +100,8 @@ class Application:
         routes = [('/health', ['GET']), ('/config', ['GET']), ('/modules', ['GET']),
                   ('/items', ['GET', 'POST']), (f'/items/{ID}', ['GET']),
                   ('/jobs', ['POST']), (f'/jobs/{ID}', ['GET']),
-                  ('/sessions/generate', ['POST']), ('/sessions', ['GET']),
+                  ('/courses/generate', ['POST']), ('/sessions/generate', ['POST']), ('/sessions', ['GET']),
+                  (f'/sessions/{ID}/(rubric|improve|adapt)', ['POST']),
                   (f'/sessions/{ID}', ['GET', 'PUT']), (f'/sessions/{ID}/evidence', ['GET', 'POST'])]
         allowed = next((methods for pattern, methods in routes if re.fullmatch(pattern, path)), None)
         if allowed is None:
@@ -113,6 +114,14 @@ class Application:
             return response(200, {'mode': self.mode, 'team': self.team})
         if path == '/modules':
             return response(200, {'modules': MODULES})
+        if path == '/courses/generate':
+            data = body(event)
+            source = {'name': required_text(data.get('name'), 'Curso', 160),
+                      'syllabus': required_text(data.get('syllabus'), 'Sílabo', 12000)}
+            course = self.generator.course(source)
+            for module in course['modules']:
+                module['id'] = new_id()
+            return response(201, dict(course, name=source['name'], provenance=self.mode))
         if path == '/items':
             if method == 'GET':
                 return response(200, {'items': [public_item(item) for item in self.store.list_recent_items()]})
@@ -137,7 +146,13 @@ class Application:
             return response(200, result)
         if path == '/sessions/generate':
             data = body(event)
-            module = next((m for m in MODULES if m['id'] == data.get('moduleId')), None)
+            if isinstance(data.get('customModule'), dict):
+                supplied = data['customModule']
+                module = {key: required_text(supplied.get(key), key, maximum) for key, maximum in
+                          [('id', 80), ('title', 160), ('objective', 1000), ('text', 3500)]}
+                module['label'] = 'Módulo de tu curso · revisado por el docente'
+            else:
+                module = next((m for m in MODULES if m['id'] == data.get('moduleId')), None)
             if not module:
                 raise ValueError('Selecciona un módulo disponible.')
             duration = data.get('duration')
@@ -148,6 +163,7 @@ class Application:
                        'context': required_text(data.get('context'), 'Contexto', 1200), 'duration': duration}
             generated = lesson_fields(self.generator.generate(context), duration)
             lesson = dict(generated, id=new_id(), moduleId=module['id'], moduleTitle=module['title'],
+                          module=module, courseName=str(data.get('courseName', ''))[:160],
                           grade=context['grade'], context=context['context'], duration=duration,
                           provenance=self.mode, status='draft', createdAt=int(time.time()))
             self.store.put('session', lesson)
@@ -158,10 +174,32 @@ class Application:
             return response(200, {'sessions': sessions})
         parts = path.split('/')
         lesson = self.require('session', parts[2])
+        if len(parts) == 4 and parts[3] in ['rubric', 'improve', 'adapt']:
+            data = body(event)
+            current = dict(lesson, **lesson_fields(data.get('lesson', lesson), lesson['duration']))
+            if isinstance(data.get('lesson'), dict) and data['lesson'].get('adaptation'):
+                current['adaptation'] = data['lesson']['adaptation']
+            if parts[3] == 'rubric':
+                return response(200, dict(self.generator.rubric({'lesson': current}), provenance=self.mode))
+            instruction = required_text(data.get('instruction'), 'Indicación', 1200)
+            if parts[3] == 'improve':
+                phase = data.get('phase')
+                if phase not in ['opening', 'development', 'closing']:
+                    raise ValueError('Selecciona inicio, desarrollo o cierre.')
+                improved = self.generator.improve({'lesson': current, 'phase': phase, 'instruction': instruction})
+                return response(200, dict(improved, phase=phase, provenance=self.mode))
+            adapted = self.generator.adapt({'lesson': current, 'instruction': instruction})
+            return response(200, dict(adapted, adaptation=instruction, provenance=self.mode))
         if len(parts) == 3:
             if method == 'GET':
                 return response(200, lesson)
-            clean = lesson_fields(body(event), lesson['duration'])
+            data = body(event)
+            clean = lesson_fields(data, lesson['duration'])
+            if 'rubric' in data:
+                clean['rubric'] = rubric_fields(data['rubric']) if data['rubric'] else []
+                clean['rubricProvenance'] = lesson.get('rubricProvenance', self.mode)
+            if data.get('adaptation'):
+                clean['adaptation'] = required_text(data['adaptation'], 'Adaptación', 1200)
             lesson.update(clean, status='saved', updatedAt=int(time.time()))
             return response(200, self.store.put('session', lesson))
         if method == 'GET':

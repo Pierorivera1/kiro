@@ -81,11 +81,21 @@ Unknown routes/IDs return 404; unsupported methods on known routes return 405 wi
 
 ### Cost/safety boundaries
 
-Maximum: 50,000 encoded request characters, 2,000 nonce characters, 80 grade, 1,200 classroom context, 160 title, 1,000 objective, 3,500 per phase, 2,000 assessment, 3,000 evidence. Total lesson time is 30–180 minutes; all phase minutes are positive integers and must sum exactly. All lists cap at 100 matching records. `/items` selects the newest 100 by server creation time; legacy items lack timestamps. DynamoDB scans up to 10,000 evaluated records across all kinds and fails instead of returning a silently incomplete ranking beyond that budget. This bounded scan is for the demonstration, not a scalable production index. Concurrent writes and server clock skew can affect ordering. Browser content uses textContent/value, never user/model HTML. CSP restricts scripts, styles, connections and embedding. Server logs do not contain submitted text or model payloads. A production data retention/access-control design is out of scope.
+| Input | Limit |
+| --- | --- |
+| Handler request body | 50,000 characters as received, before Base64 decoding when applicable |
+| Course name / syllabus (browser draft only) | 160 / 12,000 characters |
+| Grade / classroom context | 80 / 1,200 characters |
+| Duration | Integer 30–180 minutes; all three positive phase durations must sum to the total |
+| Lesson title / objective / assessment | 160 / 1,000 / 2,000 characters |
+| Each phase text / evidence | 3,500 / 3,000 characters |
+| Item/job nonce | 1–2,000 characters |
+
+Course limits are browser controls, not a course-creation API contract. All lists cap at 100 matching records. `/items` selects the newest 100 by server creation time; legacy items lack timestamps. DynamoDB scans up to 10,000 evaluated records across all kinds and fails instead of returning a silently incomplete ranking beyond that budget. This bounded scan is for the demonstration, not a scalable production index. Concurrent writes and server clock skew can affect ordering. Browser content uses textContent/value, never user/model HTML. CSP restricts scripts, styles, connections and embedding. Server logs do not contain submitted text or model payloads. A production data retention/access-control design is out of scope.
 
 ## AWS deployment
 
-A previous prototype deployment exists in the workshop account, but the T084 configuration and new HTTP tests in this change have not yet been deployed or verified in the competition portal. Deployment uses potentially billable API Gateway HTTP API, Lambda, DynamoDB, Bedrock and logging resources. Verify the account, region, permissions and model access before deploying.
+A previous prototype deployment of stack `t054-teacher-copilot` in `us-east-1` used SAM, API Gateway HTTP API, Lambda, DynamoDB and Bedrock. A fictional lesson was generated through Bedrock (HTTP 201) and retrieved (HTTP 200); another generation attempt returned an intermittent HTTP 502, so reliability is not fully verified. This evidence refers to the previous **T054** deployment and does not establish that the current code or **T084** configuration is deployed. The demo API is publicly accessible without authentication: use fictional data only. These services and logging can incur charges. Verify the account, region, permissions and model access before deploying.
 
 1. Confirm the official kit, permitted account/region, costs and deployment authorization. Obtain a usable same-region **foundation model** that supports Converse; the default `amazon.nova-lite-v1:0` is an example configuration, **not a promise of availability**. Inference-profile/cross-region model use needs a deliberate IAM change for every required resource, not a wildcard workaround.
 2. Install AWS SAM CLI when authorized, install dependencies only in `.venv`, then run:

@@ -60,7 +60,8 @@ test('new visitors see course onboarding; fixed source cards match supported bac
     assert.ok(backend.includes(card.children[3].textContent));
   }
   assert.match(e.mode.textContent, /IA real/);
-  assert.match(html, /segmentación de ejemplo, aún sin IA real/);
+  assert.match(html, /Vista previa de demostración:/);
+  assert.match(html, /Tu sílabo no se analiza ni se envía a la IA/);
   assert.deepEqual(requests.map(request => request.path).sort(), ['/config', '/modules']);
 });
 

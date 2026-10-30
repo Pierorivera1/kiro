@@ -27,7 +27,25 @@ Abre [http://127.0.0.1:8765/app](http://127.0.0.1:8765/app). El modo de demostra
 
 La interfaz usa HTML, CSS y JavaScript sin compilación. El servidor local ejecuta el mismo controlador Python que usa AWS Lambda. El almacenamiento local utiliza SQLite; la plantilla SAM configura DynamoDB y Amazon Bedrock para una posible implementación en AWS. La segmentación del curso sigue siendo una demostración local incluso cuando se configura Bedrock para generar sesiones.
 
-La plantilla de AWS está incluida en `teacher-copilot/template.yaml`. Su presencia no confirma que el despliegue ni el acceso al modelo se hayan verificado. El prototipo no está preparado para datos reales de estudiantes ni para uso público sin controles de acceso.
+La plantilla de AWS está incluida en `teacher-copilot/template.yaml`. Hubo un despliegue de demostración anterior del stack `t054-teacher-copilot` en `us-east-1`: SAM configuró API Gateway, Lambda, DynamoDB y acceso a Bedrock. Con datos ficticios se comprobó una generación de sesión mediante Bedrock (HTTP 201) y su posterior recuperación (HTTP 200). En otra prueba se observó un error HTTP 502 intermitente; la fiabilidad no está plenamente verificada. Esta evidencia corresponde al despliegue anterior con equipo **T054**, no demuestra que el código actual o la configuración **T084** estén desplegados. No introduzcas datos reales: la API de demostración es pública y no tiene autenticación.
+
+### Límites de entrada
+
+| Campo | Límite |
+| --- | --- |
+| Cuerpo recibido por el handler | 50 000 caracteres, antes de decodificar Base64 si corresponde |
+| Nombre de curso / sílabo (borrador en el navegador) | 160 / 12 000 caracteres |
+| Grado / contexto del aula | 80 / 1 200 caracteres |
+| Duración total | Entero entre 30 y 180 minutos; los tres momentos deben sumar el total |
+| Título / objetivo / evaluación | 160 / 1 000 / 2 000 caracteres |
+| Texto de cada momento / evidencia | 3 500 / 3 000 caracteres |
+| Valor de los endpoints de prueba (`items` y `jobs`) | 1–2 000 caracteres |
+
+Los límites del curso son controles de la interfaz local, no validación de una API de creación de cursos.
+
+### Hooks de Kiro
+
+`.kiro/hooks/contract-review.kiro.hook` es un candidato de diseño en formato legacy, **deshabilitado**. No hay evidencia de que se haya ejecutado. El hook `quality-check.json` está configurado, pero su activación en Kiro tampoco se ha verificado; las pruebas manuales no demuestran su ejecución.
 
 ## Comprobaciones
 
@@ -36,9 +54,11 @@ Desde `teacher-copilot`:
 ```sh
 .venv/bin/python -m unittest discover -s tests -v
 node --check src/web/app.js
+node --test tests/course_frontend.test.cjs
+sam validate --lint --template-file template.yaml
 ```
 
-Las pruebas de Python cubren, entre otros casos, sesiones, evidencias, validación de entradas y respuestas simuladas de Bedrock. La segunda instrucción comprueba la sintaxis de JavaScript y requiere Node.js.
+Las pruebas de Python cubren, entre otros casos, sesiones, evidencias, validación de entradas y respuestas simuladas de Bedrock. Las pruebas de interfaz requieren Node.js. La última instrucción requiere AWS SAM CLI y `cfn-lint`; ejecútala y registra su resultado antes de afirmar que la plantilla pasó esa validación.
 
 ## Estructura
 

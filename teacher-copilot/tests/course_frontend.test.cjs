@@ -38,8 +38,9 @@ async function app(saved = null, blockedStorage = false) {
       let payload = path === '/config' ? { mode: 'bedrock', team: 'T054' } : path === '/modules' ? { modules } : { sessions: [] };
       if (path === '/sessions/generate') {
         const prep = JSON.parse(options.body);
-        payload = { ...prep, id: 'lesson', title: 'Sample lesson', objective: 'Objective', assessment: 'Evidence', moduleTitle: 'Water', provenance: 'demo', opening: { text: 'Start', minutes: 10 }, development: { text: 'Work', minutes: 40 }, closing: { text: 'End', minutes: 10 } };
+        payload = { ...prep, id: 'lesson', title: 'Sample lesson', objective: 'Objective', assessment: 'Evidence', moduleTitle: 'Water', provenance: 'bedrock', opening: { text: 'Start', minutes: 10 }, development: { text: 'Work', minutes: 40 }, closing: { text: 'End', minutes: 10 } };
       }
+      if (path === '/sessions/lesson' && options.method === 'PUT') payload = { ...JSON.parse(options.body), status: 'saved', localDirty: false };
       return { ok: true, json: async () => payload };
     }
   });
@@ -51,7 +52,7 @@ test('new visitors see course onboarding; fixed source cards match supported bac
   const { elements: e, requests } = await app();
   assert.equal(e.course.hidden, false);
   assert.equal(e.prepare.hidden, true);
-  assert.equal(e['course-confirm'].disabled, true);
+  assert.equal(e['course-confirm'].disabled, false);
   assert.equal(e['course-module-list'].children.length, 2);
   const backend = readFileSync('src/app.py', 'utf8');
   for (const card of e['course-module-list'].children) {
@@ -74,10 +75,6 @@ test('custom syllabus is retained and cannot masquerade as an AI extraction', as
   await e['course-preview'].fire('click');
   assert.equal(e['course-modules'].hidden, false);
   assert.match(e['syllabus-preview-note'].textContent, /no se extrajeron de tu texto/);
-  await e['course-confirm'].fire('click');
-  assert.equal(e.course.hidden, false);
-  e['course-reviewed'].checked = true;
-  await e['course-reviewed'].fire('change');
   assert.equal(e['course-confirm'].disabled, false);
   await e['course-confirm'].fire('click');
   assert.equal(e.prepare.hidden, false);
@@ -87,7 +84,7 @@ test('custom syllabus is retained and cannot masquerade as an AI extraction', as
   assert.equal(requests.length, 2, 'course creation/review must not call an API');
   e.syllabus.value += ' Draft change';
   await e.syllabus.fire('input');
-  assert.equal(e['course-confirm'].disabled, true);
+  assert.equal(writes.at(-1).course.confirmed, false);
   assert.equal(e['course-context'].hidden, true);
 });
 
@@ -105,15 +102,11 @@ test('course restoration preserves existing preparation and lesson drafts', asyn
 
 test('confirmation restores locally and blocked storage does not prevent continuation', async () => {
   const first = await app();
-  first.elements['course-reviewed'].checked = true;
-  await first.elements['course-reviewed'].fire('change');
   await first.elements['course-confirm'].fire('click');
   const restored = await app(JSON.stringify(first.writes.at(-1)));
   assert.equal(restored.elements.prepare.hidden, false);
   assert.equal(restored.elements['course-context'].hidden, false);
   const blocked = await app(null, true);
-  blocked.elements['course-reviewed'].checked = true;
-  await blocked.elements['course-reviewed'].fire('change');
   await blocked.elements['course-confirm'].fire('click');
   assert.equal(blocked.elements.prepare.hidden, false);
   assert.match(blocked.elements.status.textContent, /no permite conservar borradores/);
@@ -128,6 +121,29 @@ test('lesson generation still sends only the original preparation contract', asy
   assert.equal(e.review.hidden, false);
   assert.equal(e['lesson-title'].value, 'Sample lesson');
   assert.ok(!source.includes('innerHTML'));
+});
+
+test('example course reaches a generated and saved session in five actions', async () => {
+  const { elements: e, requests } = await app();
+  assert.match(html, /Probar una clase con el módulo de ejemplo/);
+  assert.match(html, /Usarás 2 módulos de muestra/);
+  assert.doesNotMatch(html, /Revisaste 2 módulos/);
+  await e['course-next'].fire('click');
+  await e['course-preview'].fire('click');
+  assert.equal(e['course-modules'].hidden, false);
+  assert.equal(e['course-confirm'].disabled, false);
+  await e['course-confirm'].fire('click');
+  assert.equal(e.prepare.hidden, false);
+  assert.equal(e.module.value, 'water');
+  assert.match(e.generate.textContent, /Generar sesión con IA/);
+  await e['prepare-form'].fire('submit');
+  assert.equal(e.review.hidden, false);
+  assert.match(e.provenance.textContent, /Amazon Bedrock/);
+  assert.match(e.status.textContent, /Propuesta lista/);
+  await e['lesson-form'].fire('submit');
+  assert.match(e.status.textContent, /Sesión guardada/);
+  assert.equal(requests.filter(r => r.path === '/sessions/generate').length, 1);
+  assert.equal(requests.filter(r => r.path === '/sessions/lesson' && r.options.method === 'PUT').length, 1);
 });
 
 

@@ -18,6 +18,7 @@
   let courseDirty = false;
   let evidenceRequest = 0;
   let portfolioRequest = 0;
+  let generateLabel = 'Generar propuesta →';
 
   function notice(message = '') { $('status').textContent = message; }
   function clearError() { $('error').hidden = true; $('retry').hidden = true; }
@@ -87,8 +88,7 @@
     $('syllabus-preview-note').textContent = custom
       ? 'Tu texto se conserva como borrador. Estos módulos pertenecen al sílabo de ejemplo, no se extrajeron de tu texto. Al continuar prepararás con esta muestra fija.'
       : 'Esta es una segmentación predefinida del sílabo ficticio de ejemplo. No se ha ejecutado IA ni se ha creado un curso en el servidor.';
-    $('course-reviewed').checked = state.course.reviewed;
-    $('course-confirm').disabled = !state.course.reviewed || !state.course.name.trim();
+    $('course-confirm').disabled = !state.course.name.trim();
   }
   function captureCourse() {
     courseDirty = courseDirty || state.course.name !== $('course-name').value || state.course.syllabus !== $('syllabus').value;
@@ -261,6 +261,7 @@
       const [config, result] = await Promise.all([api('/config'), api('/modules')]);
       modules = result.modules;
       $('mode').textContent = config.mode === 'demo' ? DEMO : 'IA real: Amazon Bedrock · revisa siempre la propuesta';
+      generateLabel = config.mode === 'demo' ? 'Generar propuesta de ejemplo →' : 'Generar sesión con IA →';
       $('team').textContent = config.team;
       $('module').replaceChildren(...modules.map(module => { const option = node('option', module.title); option.value = module.id; return option; }));
       $('module').disabled = false;
@@ -272,7 +273,7 @@
       }
       showModule();
       showLesson();
-      busy($('generate'), false, 'Generar propuesta →');
+      busy($('generate'), false, generateLabel);
     } catch (error) {
       $('mode').textContent = 'Modo no disponible: no se pudo conectar con el servidor.';
       fail(error, true);
@@ -289,15 +290,9 @@
   $('course-back-details').addEventListener('click', () => courseStep(0));
   $('course-back-syllabus').addEventListener('click', () => courseStep(1));
   $('course-preview').addEventListener('click', () => { showCoursePreview(); courseStep(2); });
-  $('course-reviewed').addEventListener('change', () => {
-    state.course.reviewed = $('course-reviewed').checked;
-    state.course.confirmed = false;
-    showCoursePreview();
-    showCourseContext();
-    persist();
-  });
   $('course-confirm').addEventListener('click', () => {
-    if (!state.course.reviewed || !state.course.name.trim()) return;
+    if (!state.course.name.trim()) return;
+    state.course.reviewed = true;
     state.course.confirmed = true;
     persist();
     showCourseContext();
@@ -316,8 +311,10 @@
     event.preventDefault();
     clearError();
     capturePrep();
-    busy($('generate'), true, 'Preparando propuesta…');
-    notice('Preparando tu propuesta. El contexto permanece guardado en este navegador.');
+    busy($('generate'), true, 'Generando sesión…');
+    notice(storageAvailable
+      ? 'Generando tu sesión; esto puede tardar unos segundos. Conservamos el contexto en este navegador.'
+      : 'Generando tu sesión; esto puede tardar unos segundos. El contexto permanece en esta pestaña.');
     try {
       const lesson = await api('/sessions/generate', 'POST', state.prep);
       state.drafts[lesson.id] = lesson;
@@ -326,7 +323,7 @@
       go('review');
       notice('Propuesta lista y borrador guardado. Revísala antes de usarla.');
     } catch (error) { fail(error); }
-    finally { busy($('generate'), false, 'Generar propuesta →'); }
+    finally { busy($('generate'), false, generateLabel); }
   });
   $('lesson-form').addEventListener('submit', async event => {
     event.preventDefault();

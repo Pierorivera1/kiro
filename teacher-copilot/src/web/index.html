@@ -53,18 +53,22 @@
         <section id="course-modules" class="course-panel" aria-labelledby="course-modules-heading" hidden>
           <div class="portfolio-toolbar"><h2 id="course-modules-heading" tabindex="-1">Dos módulos, una muestra para revisar</h2><span class="tag">Muestra fija · sin IA</span></div>
           <p id="syllabus-preview-note" class="notice" role="status"></p>
+          <div class="card course-confirmation">
+            <p>Revisa los módulos de ejemplo y continúa para generar una sesión editable. La muestra no se extrae de tu texto.</p>
+            <button type="button" class="primary" id="course-confirm">Confirmar módulos y preparar clase →</button>
+          </div>
           <details class="sample-syllabus"><summary>Consultar el sílabo de ejemplo usado en esta muestra</summary><p id="sample-syllabus-text"></p></details>
           <div id="course-module-list" class="course-module-list"></div>
-          <div class="card course-confirmation"><label class="check-label" for="course-reviewed"><input type="checkbox" id="course-reviewed"><span>Revisé estos dos módulos de ejemplo y sus fragmentos de origen. Continuaré con esta muestra, no con una extracción de mi texto.</span></label>
+          <div class="card course-confirmation">
             <p class="help">El nombre del curso es contexto local de la vista previa; no se asociará a las sesiones guardadas en el portafolio.</p>
-            <div class="action-bar"><button type="button" class="text-button" id="course-back-syllabus">← Volver al sílabo</button><button type="button" class="primary" id="course-confirm" disabled>Confirmar módulos y preparar clase →</button></div>
+            <div class="action-bar"><button type="button" class="text-button" id="course-back-syllabus">← Volver al sílabo</button></div>
           </div>
         </section>
-        <button type="button" class="text-button course-skip" data-go="prepare">Ya tengo un punto de partida: ir a Preparar clase →</button>
+        <button type="button" class="text-button course-skip" data-go="prepare">Probar una clase con el módulo de ejemplo →</button>
       </section>
       <section id="prepare" class="view" aria-labelledby="prepare-title" hidden>
         <header class="page-heading"><h1 id="prepare-title" tabindex="-1">Preparar clase</h1><p>Elige un módulo y describe el contexto de tu aula.</p></header>
-        <div id="course-context" class="notice course-context" hidden><div><span class="eyebrow">CURSO LOCAL · MÓDULOS DE EJEMPLO</span><h2 id="prepared-course-name"></h2><p>Revisaste 2 módulos de muestra. Este contexto no se guarda con las sesiones.</p></div><button type="button" class="text-button" data-go="course">Revisar curso →</button></div>
+        <div id="course-context" class="notice course-context" hidden><div><span class="eyebrow">CURSO LOCAL · MÓDULOS DE EJEMPLO</span><h2 id="prepared-course-name"></h2><p>Usarás 2 módulos de muestra. Este contexto no se guarda con las sesiones.</p></div><button type="button" class="text-button" data-go="course">Revisar curso →</button></div>
         <form id="prepare-form">
           <div class="prepare-grid">
             <section class="card source-card" aria-labelledby="source-heading">
@@ -81,7 +85,7 @@
               <p class="help" id="context-help">Contexto orientativo: cámbialo por tu realidad. Puedes indicar recursos, necesidades y formas de trabajo. No incluyas nombres ni datos personales.</p>
             </section>
           </div>
-          <div class="action-bar"><p>Una propuesta, no una receta.<br><span>Podrás editar cada parte y sus tiempos.</span></p><button type="submit" class="primary" id="generate" disabled>Generar propuesta <span aria-hidden="true">→</span></button></div>
+          <div class="action-bar"><p>Una propuesta, no una receta.<br><span>Podrás editar cada parte y sus tiempos.</span></p><button type="submit" class="primary" id="generate" disabled>Preparando servicio…</button></div>
         </form>
       </section>
       <section id="review" class="view" aria-labelledby="review-title" hidden>
